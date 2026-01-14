@@ -1254,23 +1254,11 @@
           
           console.log(`  [${index}] ${speakerName}:`, bubbleText.slice(0, 50) + '...');
           
-          const isLastBubble = index === response.bubbles.length - 1;
-          
-          // ✅ FIX: Create minimal per-bubble JSON, only store on LAST bubble
-          const perBubbleJson = isLastBubble ? {
-            mode: "reply",
-            selected_character: speakerName,
-            bubbles: [{ speaker: speakerName, text: bubbleText }],
-            final: response.final || response.data?.final || {
-              decision: "ACCEPT",
-              next_action: "Continue conversation. Success: 1 clear message."
-            }
-          } : null;
-          
+          // ✅ CRITICAL FIX: Only store rawJson on LAST bubble to prevent history bloat
           addMessage(chatId, 'in', bubbleText, {
             tag: speakerName,
-            rawJson: perBubbleJson,  // ✅ ONLY last bubble gets JSON
-            chips: isLastBubble ? [
+            rawJson: index === response.bubbles.length - 1 ? response.data : null,  // ✅ ONLY LAST BUBBLE
+            chips: index === response.bubbles.length - 1 ? [
               { action: 'next', label: '→ Next' }, 
               { action: 'audit', label: '⏱️ Audit' }
             ] : []
