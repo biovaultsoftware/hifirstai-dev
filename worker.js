@@ -1,0 +1,1093 @@
+/**
+ * MONEY AI COUNCIL — FIXED WORKER v7 (RELAXED VALIDATION)
+ * ------------------------------------------------------------------------------
+ * Fixes from v6:
+ * 1) Relaxed validation - allows conversational responses without strict 48h actions
+ * 2) Handles "what's my name?" type questions properly
+ * 3) Less strict isGoodAction() function
+ * 4) detectViolations() skips action check for short conversational responses
+ *
+ * Plus all v6 features:
+ * - Parses and uses conversation history from request body
+ * - Builds multi-turn messages array for the model
+ * - Maintains context awareness across conversation
+ *
+ * Plus all v5 features:
+ * - Language detection: replies in user's language (Arabic/English/mixed)
+ * - Query rewrite outputs user_language and keeps normalized_query in same language
+ * - QC retry NEVER appended to user text (prevents English override)
+ * - Blocks onboarding fluff ("to better assist you...") via system rules + validator
+ * - Truth-gating: no "PDF knowledge base" unless excerpts exist
+ *
+ * ENV:
+ * - env.AI (Workers AI binding)
+ * - env.TAVILY_API_KEY (optional web search)
+ * - env.MONEYAI_VECTORIZE (optional Vectorize binding)
+ */
+
+export default {
+  async fetch(request, env) {
+    console.log('╔═══════════════════════════════════════════════════════════════╗');
+    console.log('║          WORKER REQUEST START                                 ║');
+    console.log('╚═══════════════════════════════════════════════════════════════╝');
+    console.log('⏰ Timestamp:', new Date().toISOString());
+    console.log('🌐 Method:', request.method);
+    console.log('🔗 URL:', request.url);
+    
+    // ─────────────────────────────────────────────────────────────
+    // CORS
+    // ─────────────────────────────────────────────────────────────
+    if (request.method === "OPTIONS") {
+      console.log('✅ Handling OPTIONS (CORS preflight)');
+      return new Response(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Parse input (NOW WITH HISTORY SUPPORT)
+    // ─────────────────────────────────────────────────────────────
+    console.log('\n📥 PARSING REQUEST BODY...');
+    const url = new URL(request.url);
+    let userText = url.searchParams.get("text");
+    let conversationHistory = [];  // ✅ NEW: Parse conversation history
+    let chatId = null;
+
+    if (!userText && request.method === "POST") {
+      try {
+        const body = await request.json();
+        
+        console.log('📦 Raw request body:', JSON.stringify(body, null, 2));
+        
+        userText = body.text || body.message || body.query;
+        console.log('💬 Extracted userText:', userText);
+        
+        // ✅ NEW: Extract conversation history from request
+        if (Array.isArray(body.history)) {
+          console.log('📜 Found history array with', body.history.length, 'messages');
+          
+          conversationHistory = body.history
+            .filter(msg => msg && msg.role && msg.content)
+            .map(msg => ({
+              role: msg.role === 'user' ? 'user' : 'assistant',
+              content: String(msg.content || '').slice(0, 2000)  // Limit length
+            }))
+            .slice(-20);  // Keep last 20 messages max
+          
+          console.log('✅ Processed history:', conversationHistory.length, 'messages');
+          conversationHistory.forEach((msg, i) => {
+            console.log(`  [${i}] ${msg.role}: ${msg.content.slice(0, 60)}...`);
+          });
+        } else {
+          console.log('⚠️ NO HISTORY in request (or not an array)');
+        }
+        
+        chatId = body.chatId || null;
+        console.log('📍 Chat ID:', chatId);
+      } catch (err) {
+        console.error('❌ Error parsing request body:', err.message);
+      }
+    }
+
+    if (!userText) {
+      console.log('⚠️ No userText provided, using default');
+      userText = "Explain Rush → Rich in one practical example.";
+    }
+    
+    console.log('✅ Final userText:', userText);
+
+    // ─────────────────────────────────────────────────────────────
+    // Language detect (fast + deterministic)
+    // ─────────────────────────────────────────────────────────────
+    console.log('\n🌍 LANGUAGE DETECTION...');
+    const detectedLang = detectUserLanguage(userText);
+    console.log('✅ Detected language:', detectedLang);
+
+    // ─────────────────────────────────────────────────────────────
+    // Route persona (prioritize chatId from frontend)
+    // ─────────────────────────────────────────────────────────────
+    console.log('\n🎭 ROUTING TO PERSONA...');
+    console.log('📍 Frontend chatId:', chatId);
+    
+    // Map frontend chatId to Worker character names
+    const CHAT_ID_TO_CHARACTER = {
+      'kareem': 'KAREEM',
+      'turbo': 'TURBO',
+      'wolf': 'WOLF',
+      'luna': 'LUNA',
+      'captain': 'THE_CAPTAIN',
+      'tempo': 'TEMPO',
+      'hakim': 'HAKIM',
+      'wheat': 'UNCLE_WHEAT',
+      'tommy': 'TOMMY_TOMATO',
+      'architect': 'THE_ARCHITECT'
+    };
+    
+    let router;
+    if (chatId && CHAT_ID_TO_CHARACTER[chatId]) {
+      // Use character selected in frontend
+      const selectedCharacter = CHAT_ID_TO_CHARACTER[chatId];
+      console.log('✅ Using frontend selection:', chatId, '→', selectedCharacter);
+      router = { character: selectedCharacter, killSwitchTriggered: false };
+    } else {
+      // Fall back to keyword-based routing
+      console.log('⚠️ No chatId provided, using keyword routing');
+      router = runRoutingLogic(userText);
+    }
+    
+    console.log('✅ Selected character:', router.character);
+    console.log('⚡ Kill switch triggered:', router.killSwitchTriggered);
+
+    try {
+      // ─────────────────────────────────────────────────────────────
+      // STEP 0: QUERY REWRITE (tool gating + normalized query + language)
+      // ─────────────────────────────────────────────────────────────
+      console.log('\n' + '═'.repeat(65));
+      console.log('STEP 0: QUERY REWRITE');
+      console.log('═'.repeat(65));
+      console.log('📝 Input query:', userText);
+      console.log('🌍 Detected language:', detectedLang);
+      
+      const rewrite = await runQueryRewrite(env, userText, detectedLang);
+      
+      console.log('✅ Rewrite result:', JSON.stringify(rewrite, null, 2));
+
+      const normalizedQuery = rewrite?.normalized_query || userText;
+      const useInternalRag = rewrite?.use_internal_rag ?? true;
+      const useWebSearch = rewrite?.use_web_search ?? false;
+
+      // language from rewrite (preferred), else fallback to detectedLang
+      const userLanguage = rewrite?.user_language || detectedLang;
+      
+      console.log('📌 Normalized query:', normalizedQuery);
+      console.log('🔍 Use internal RAG:', useInternalRag);
+      console.log('🌐 Use web search:', useWebSearch);
+      console.log('🗣️ User language:', userLanguage);
+
+      // ─────────────────────────────────────────────────────────────
+      // STEP 1: INTERNAL RAG (Vectorize optional)
+      // ─────────────────────────────────────────────────────────────
+      console.log('\n' + '═'.repeat(65));
+      console.log('STEP 1: INTERNAL RAG (VECTORIZE)');
+      console.log('═'.repeat(65));
+      
+      let internalExcerptsBlock = "";
+      if (useInternalRag) {
+        console.log('🔎 Querying Vectorize with:', normalizedQuery);
+        const internalExcerpts = await retrieveInternalExcerpts(env, normalizedQuery, 8);
+        console.log('📊 Retrieved', internalExcerpts.length, 'excerpts');
+        
+        internalExcerpts.forEach((excerpt, i) => {
+          console.log(`  [${i}] chunk_id: ${excerpt.chunk_id}, score: ${excerpt.score?.toFixed(3)}`);
+          console.log(`      source: ${excerpt.source}`);
+          console.log(`      text: ${excerpt.text.slice(0, 100)}...`);
+        });
+        
+        internalExcerptsBlock = formatInternalExcerpts(internalExcerpts);
+        console.log('✅ RAG context size:', internalExcerptsBlock.length, 'chars');
+      } else {
+        console.log('⏭️ Skipping internal RAG (not needed for this query)');
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // STEP 2: WEB SEARCH (ONLY if rewrite says so)
+      // ─────────────────────────────────────────────────────────────
+      console.log('\n' + '═'.repeat(65));
+      console.log('STEP 2: WEB SEARCH');
+      console.log('═'.repeat(65));
+      
+      let webContextBlock = "";
+      if (useWebSearch && env.TAVILY_API_KEY) {
+        console.log('🌐 Searching web with Tavily:', normalizedQuery);
+        try {
+          const searchResults = await searchWeb(normalizedQuery, env.TAVILY_API_KEY);
+          if (searchResults) {
+            webContextBlock = `\n\nWEB SEARCH RESULTS (external):\n${searchResults}\n`;
+            console.log('✅ Web search results:', searchResults.slice(0, 200), '...');
+            console.log('📊 Web context size:', webContextBlock.length, 'chars');
+          } else {
+            console.log('⚠️ Web search returned no results');
+          }
+        } catch (e) {
+          console.error("❌ Web search failed:", e?.message || e);
+        }
+      } else if (useWebSearch && !env.TAVILY_API_KEY) {
+        console.log('⚠️ Web search requested but TAVILY_API_KEY not configured');
+      } else {
+        console.log('⏭️ Skipping web search (not needed for this query)');
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // STEP 3: BUILD SINGLE SYSTEM PROMPT
+      // ─────────────────────────────────────────────────────────────
+      console.log('\n' + '═'.repeat(65));
+      console.log('STEP 3: BUILD SYSTEM PROMPT');
+      console.log('═'.repeat(65));
+      
+      const systemPrompt = buildMoneyAIGenerationSystemPrompt({
+        personaKey: router.character,
+        personaText: PERSONAS[router.character],
+        internalExcerptsBlock,
+        webContextBlock,
+        userLanguage,
+      });
+      
+      console.log('🎭 Persona:', router.character);
+      console.log('📝 System prompt size:', systemPrompt.length, 'chars');
+      console.log('📦 Context breakdown:');
+      console.log('  - RAG excerpts:', internalExcerptsBlock.length, 'chars');
+      console.log('  - Web search:', webContextBlock.length, 'chars');
+      console.log('  - User language:', userLanguage);
+      
+      // Show first 300 chars of system prompt
+      console.log('👁️ System prompt preview:');
+      console.log(systemPrompt.slice(0, 300) + '...');
+
+      // ─────────────────────────────────────────────────────────────
+      // STEP 4: CALL MODEL WITH HISTORY + VALIDATE + AUTO-RETRY
+      // ─────────────────────────────────────────────────────────────
+      console.log('\n' + '═'.repeat(65));
+      console.log('STEP 4: MODEL GENERATION WITH VALIDATION');
+      console.log('═'.repeat(65));
+      console.log('🤖 Model:', MODEL_GENERATION);
+      console.log('💬 User message:', userText);
+      console.log('📜 Conversation history:', conversationHistory.length, 'messages');
+      
+      const result = await generateWithValidation(env, {
+        model: MODEL_GENERATION,
+        systemPrompt,
+        userMessage: userText,
+        conversationHistory,  // ✅ NEW: Pass history to generation
+        personaKey: router.character,
+      });
+
+      console.log('\n' + '═'.repeat(65));
+      console.log('✅ FINAL RESULT');
+      console.log('═'.repeat(65));
+      console.log(JSON.stringify(result, null, 2));
+      console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+      console.log('║          WORKER REQUEST COMPLETE                              ║');
+      console.log('╚═══════════════════════════════════════════════════════════════╝\n');
+      
+      return jsonResponse(result, 200);
+    } catch (e) {
+      return jsonResponse(
+        {
+          mode: "reply",
+          selected_character: router.character,
+          bubbles: [{ speaker: router.character, text: "System error: " + (e?.message || String(e)) }],
+          final: { decision: "REJECT", next_action: localizeAction("Try again with a shorter question.", detectedLang) },
+        },
+        500
+      );
+    }
+  },
+};
+
+/* ─────────────────────────────────────────────────────────────
+ * MODELS
+ * ───────────────────────────────────────────────────────────── */
+const MODEL_REWRITE = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+const MODEL_GENERATION = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+
+/* ─────────────────────────────────────────────────────────────
+ * LANGUAGE DETECTION
+ * ───────────────────────────────────────────────────────────── */
+function detectUserLanguage(text) {
+  const s = String(text || "");
+  // Arabic Unicode ranges (basic + extended)
+  const hasArabic = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(s);
+  const hasLatin = /[A-Za-z]/.test(s);
+  if (hasArabic && hasLatin) return "mixed";
+  if (hasArabic) return "ar";
+  return "en";
+}
+
+function localizeAction(actionEn, lang) {
+  if (lang === "ar") {
+    // keep it simple Arabic
+    // (we do not auto-translate long text; just provide a usable Arabic fallback)
+    if (actionEn.toLowerCase().includes("try again")) return "أعد المحاولة بسؤال أقصر وواضح.";
+    return "نفّذ المهمة خلال 48 ساعة وارجع بالنتيجة.";
+  }
+  return actionEn;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * QUERY REWRITE PROMPT
+ * ───────────────────────────────────────────────────────────── */
+const QUERY_REWRITE_PROMPT = `
+You are Money AI — Query Rewrite Engine.
+
+You do NOT answer the user.
+You output retrieval-ready JSON.
+
+CRITICAL LANGUAGE RULE:
+- Detect the user's language.
+- Keep normalized_query in the SAME language as the user's message.
+- Return user_language: "ar" | "en" | "mixed".
+- Do NOT translate Arabic to English.
+
+TOOL POLICY:
+- use_internal_rag = true for anything involving business decisions, ideas, execution, Rush→Rich, Wheat/Tomato, SHE, ECF, motivators.
+- use_web_search = true ONLY if fresh external facts are needed (licenses, permits, regulations, prices, addresses, current rules, "today/latest", official requirements).
+
+OUTPUT JSON ONLY. No prose.
+
+Schema:
+{
+  "user_language": "ar|en|mixed",
+  "intent_type": "business_decision|career_decision|idea_validation|time_management|mindset_block|factual_lookup|comparison|other",
+  "normalized_query": "<short decision-focused query in same language>",
+  "use_internal_rag": true|false,
+  "use_web_search": true|false,
+  "known_variables": { "<key>": "<value>" },
+  "missing_variables": [ "<string>" ]
+}
+`.trim();
+
+/* ─────────────────────────────────────────────────────────────
+ * GENERATION SYSTEM PROMPT (SINGLE SYSTEM PROMPT)
+ * ───────────────────────────────────────────────────────────── */
+function buildMoneyAIGenerationSystemPrompt({
+  personaKey,
+  personaText,
+  internalExcerptsBlock,
+  webContextBlock,
+  userLanguage,
+}) {
+  const truthGate = internalExcerptsBlock
+    ? `INTERNAL EXCERPTS ARE PROVIDED BELOW. You may use them and may cite them ONLY by the provided chunk ids.`
+    : `NO INTERNAL EXCERPTS ARE PROVIDED. You MUST NOT mention PDFs, "knowledge base", internal documents, or imply internal sources. If a detail requires confirmation, say what to verify.`;
+
+  const webGate = webContextBlock
+    ? `WEB SEARCH RESULTS ARE PROVIDED BELOW. You may use them.`
+    : `NO WEB SEARCH RESULTS ARE PROVIDED. You MUST NOT claim you searched the web or reference "web search reveals" statements.`;
+
+  const languageRule =
+    userLanguage === "ar"
+      ? `LANGUAGE RULE: The user language is Arabic. Respond in Arabic (simple, Gulf/Levant-friendly).`
+      : userLanguage === "mixed"
+        ? `LANGUAGE RULE: The user mixed Arabic/English. Respond in the dominant language of the last user message; if unclear, use Arabic.`
+        : `LANGUAGE RULE: Respond in English.`;
+  
+  // ✅ NEW: Character specialization and cross-referral system
+  const CHARACTER_SPECIALTIES = {
+    'KAREEM': {
+      motivator: 'LAZINESS / EFFICIENCY',
+      specialty: 'Automation, shortcuts, systems that require minimal effort',
+      keywords: ['automate', 'lazy', 'efficient', 'shortcut', 'less work', 'easier way'],
+      redirect: 'If user asks about speed → redirect to TURBO. If about scaling/ROI → redirect to WOLF. If about security → redirect to THE_CAPTAIN.'
+    },
+    'TURBO': {
+      motivator: 'SPEED / VELOCITY',
+      specialty: 'Fast execution, 48-hour wins, rapid testing',
+      keywords: ['fast', 'quick', 'now', 'urgent', 'asap', 'speed', 'rapid'],
+      redirect: 'If user asks about efficiency → redirect to KAREEM. If about scaling/ROI → redirect to WOLF. If about quality → redirect to LUNA.'
+    },
+    'WOLF': {
+      motivator: 'GREED / SCALE',
+      specialty: 'ROI, leverage, 10x growth, aggressive scaling',
+      keywords: ['scale', '10x', 'roi', 'growth', 'multiply', 'leverage', 'money'],
+      redirect: 'If user asks about efficiency → redirect to KAREEM. If about speed → redirect to TURBO. If about security → redirect to THE_CAPTAIN.'
+    },
+    'LUNA': {
+      motivator: 'SATISFACTION / CRAFT',
+      specialty: 'Quality of life, meaningful work, brand, enjoyment',
+      keywords: ['enjoy', 'love', 'satisfaction', 'meaning', 'brand', 'quality', 'craft'],
+      redirect: 'If user asks about speed → redirect to TURBO. If about efficiency → redirect to KAREEM. If about scaling → redirect to WOLF.'
+    },
+    'THE_CAPTAIN': {
+      motivator: 'SECURITY / SAFETY',
+      specialty: 'Risk management, safety nets, backup plans, runway',
+      keywords: ['risk', 'safe', 'security', 'backup', 'runway', 'protection', 'insurance'],
+      redirect: 'If user asks about speed → redirect to TURBO. If about scaling → redirect to WOLF. If about efficiency → redirect to KAREEM.'
+    },
+    'TEMPO': {
+      motivator: 'TIME AWARENESS',
+      specialty: 'Time auditing, tracking hours, efficiency cost analysis',
+      keywords: ['time', 'hours', 'audit', 'track', 'cost', 'waste'],
+      redirect: 'If user asks about speed → redirect to TURBO. If about efficiency → redirect to KAREEM. If about ROI → redirect to WOLF.'
+    },
+    'HAKIM': {
+      motivator: 'WISDOM / STORIES',
+      specialty: 'Parables, philosophical guidance, deeper meaning',
+      keywords: ['story', 'wisdom', 'meaning', 'philosophy', 'parable'],
+      redirect: 'For tactical questions, redirect to the appropriate specialist based on their need.'
+    },
+    'UNCLE_WHEAT': {
+      motivator: 'NECESSITY / NEEDS',
+      specialty: 'Need vs want analysis, recession-proof business, essentials',
+      keywords: ['need', 'necessity', 'essential', 'wheat', 'survive', 'recession'],
+      redirect: 'If user asks about branding → redirect to TOMMY_TOMATO or LUNA. If about scaling → redirect to WOLF.'
+    },
+    'TOMMY_TOMATO': {
+      motivator: 'ADDED VALUE / HYPE',
+      specialty: 'Branding, marketing, excitement, premium positioning',
+      keywords: ['brand', 'hype', 'marketing', 'exciting', 'premium', 'value'],
+      redirect: 'If user asks about fundamentals → redirect to UNCLE_WHEAT. If about scaling → redirect to WOLF.'
+    },
+    'THE_ARCHITECT': {
+      motivator: 'SYSTEMS / STRUCTURE',
+      specialty: 'Building systems, working ON not IN, compounding leverage',
+      keywords: ['system', 'structure', 'framework', 'architecture', 'process'],
+      redirect: 'For specific motivator questions, redirect to the appropriate specialist.'
+    }
+  };
+
+  const currentCharacter = CHARACTER_SPECIALTIES[personaKey] || CHARACTER_SPECIALTIES['THE_ARCHITECT'];
+  
+  const characterGuidance = `
+CHARACTER SPECIALIZATION & CROSS-REFERRAL SYSTEM
+
+YOUR CHARACTER: ${personaKey}
+YOUR MOTIVATOR: ${currentCharacter.motivator}
+YOUR SPECIALTY: ${currentCharacter.specialty}
+
+STAY IN YOUR LANE:
+- You are THE EXPERT in ${currentCharacter.motivator}
+- When users ask questions aligned with your specialty, give deep, specific advice
+- Your perspective is valuable but LIMITED to your domain
+
+WHEN TO REDIRECT:
+${currentCharacter.redirect}
+
+HOW TO REDIRECT:
+1. Acknowledge their question
+2. Give a BRIEF answer from your perspective (1-2 sentences max)
+3. Strongly suggest they talk to the specialist
+4. Format: "I'm focused on [your specialty]. For [their topic], talk to [CHARACTER] - they specialize in [their specialty]."
+
+EXAMPLE REDIRECTS:
+${getRedirectExamples(personaKey)}
+
+WHEN NOT TO REDIRECT:
+- If their question can be answered through your lens (e.g., KAREEM can suggest lazy solutions to speed problems)
+- If it's a general business question not specific to another motivator
+- If they explicitly want YOUR perspective on another topic
+
+CROSS-REFERRAL DIRECTORY:
+- KAREEM → Laziness/Efficiency (automation, shortcuts, minimal effort)
+- TURBO → Speed/Velocity (fast wins, rapid execution, 48-hour plans)
+- WOLF → Greed/Scale (ROI, 10x growth, aggressive scaling)
+- LUNA → Satisfaction/Craft (quality of life, meaningful work, brand)
+- THE_CAPTAIN → Security/Safety (risk management, runway, backup plans)
+- TEMPO → Time Awareness (time audits, hour tracking, cost analysis)
+- HAKIM → Wisdom/Stories (parables, deeper meaning, philosophy)
+- UNCLE_WHEAT → Necessity/Needs (need vs want, recession-proof, essentials)
+- TOMMY_TOMATO → Added Value/Hype (branding, marketing, excitement)
+- THE_ARCHITECT → Systems/Structure (building systems, frameworks, processes)
+`;
+
+  return `
+You are Money AI.
+
+${languageRule}
+
+ROLE
+You are a business + mindset execution engine. You move users from RUSH thinking to RICH thinking.
+Your job: (1) diagnosis, (2) decision framework applied to this case, (3) ONE measurable next action.
+
+${characterGuidance}
+
+CONVERSATION CONTEXT
+You have access to the conversation history. Use it to:
+- Maintain context and remember what was discussed
+- Reference previous advice, decisions, or user statements
+- Understand what "this", "that", "it" refer to from prior messages
+- Build on earlier recommendations rather than repeating
+- REMEMBER user details like their name, situation, goals mentioned earlier
+- If user asks "what's my name?" and they told you earlier, ANSWER with their name
+
+HANDLING SIMPLE QUESTIONS
+For simple conversational questions (like "what's my name?", "what did I say?", "remind me"):
+- Answer directly from conversation history
+- Keep the response short and direct
+- The next_action can be simple like "Continue our conversation" or "Ask your next question"
+- Do NOT force a 48-hour business action for casual questions
+
+ABSOLUTE RULES (NO EXCEPTIONS)
+1) NO GENERIC FILLER:
+   Never write vague phrases like "can be lucrative", "growing demand", "do market research", "get necessary licenses", "create a comprehensive business plan".
+   Every line must reduce uncertainty or force a decision.
+
+2) NO ONBOARDING / NO THERAPIST MODE:
+   Never start with: "To better assist you...", "I need more information...", "Provide more information..."
+   If the user is vague, make reasonable assumptions and still produce a concrete plan.
+   You may ask ONLY ONE specific question at the end.
+
+3) NO FAKE SOURCES (TRUTH RULE):
+   ${truthGate}
+   If you reference internal sources, include the chunk id inline.
+
+4) NO TOOL HALLUCINATION:
+   ${webGate}
+
+5) ALWAYS PRODUCE A REAL ACTION:
+   Every response MUST include exactly ONE action that is:
+   - time-boxed (≤ 48 hours)
+   - binary (done / not done)
+   - measurable (clear success criteria)
+   Never output "Review the advice above."
+
+6) SAFETY:
+   No legal/tax/regulated financial advice. Give general educational guidance + suggest consulting professionals when needed. No guarantees.
+
+MONEY AI ENGINE (apply silently)
+A) Wheat vs Tomato (Need Strength) — 1 line classification + why
+B) Leverage & ECF — identify time-for-money trap; propose ONE leverage lever
+C) Execution Friction — top 2–4 real blockers (not vague)
+D) Unit Math — 2–5 decision numbers; if unknown, fast estimation steps
+E) 48-hour move — force momentum
+
+MOTIVATOR FIT
+Infer primary motivator (laziness/speed/ambition/satisfaction/security) and shape the action to be followable.
+
+TONE
+Direct, calm, precise. Tough on weak ideas, respectful to the person.
+
+MANDATORY OUTPUT FORMAT (JSON ONLY)
+Return valid JSON ONLY. No markdown. Must match:
+{
+  "mode": "reply" | "council_debate",
+  "selected_character": "NAME",
+  "bubbles": [ { "speaker": "NAME", "text": "Plain text advice" } ],
+  "final": { "decision": "ACCEPT" | "REJECT", "next_action": "Binary 48-hour micro-mission + success criteria" }
+}
+
+CURRENT PERSONA
+Persona key: ${personaKey}
+Persona voice: ${personaText}
+Persona is voice only. Persona must NEVER override the rules above.
+
+${internalExcerptsBlock || ""}
+
+${webContextBlock || ""}
+
+Now answer the user message. Output JSON ONLY.
+`.trim();
+}
+
+// Helper function to generate redirect examples for each character
+function getRedirectExamples(personaKey) {
+  const examples = {
+    'KAREEM': `
+User: "I need to move fast on this"
+KAREEM: "Fast? That sounds like a lot of work. But fine - cut the scope to 1 core feature. For aggressive speed execution, talk to TURBO - he specializes in 48-hour wins."
+`,
+    'TURBO': `
+User: "How can I make this more efficient?"
+TURBO: "Efficient? Just ship it now, optimize later. But if you want to eliminate steps entirely, talk to KAREEM - he's the efficiency expert."
+`,
+    'WOLF': `
+User: "Is this risky?"
+WOLF: "Everything's risky. But if you want to play it safe, talk to THE_CAPTAIN - he specializes in risk management."
+`,
+    'LUNA': `
+User: "How do I scale this 10x?"
+LUNA: "Scale matters, but do you even enjoy this enough to scale it? For pure ROI scaling strategy, talk to WOLF - that's his domain."
+`,
+    'THE_CAPTAIN': `
+User: "How fast can I grow?"
+THE_CAPTAIN: "Not until your runway is secure. Build 6 months buffer first. For aggressive growth after that, talk to WOLF."
+`,
+    'TEMPO': `
+User: "How do I automate this?"
+TEMPO: "First, track how many hours it actually takes. Then talk to KAREEM about automation - he's the expert."
+`,
+    'HAKIM': `
+User: "What's the fastest way?"
+HAKIM: "There's a story about two merchants... But for tactical speed advice, talk to TURBO."
+`,
+    'UNCLE_WHEAT': `
+User: "How do I make this exciting?"
+UNCLE_WHEAT: "Exciting? Make it necessary first. For branding and hype, talk to TOMMY_TOMATO."
+`,
+    'TOMMY_TOMATO': `
+User: "Is there demand for this?"
+TOMMY_TOMATO: "Demand? We CREATE demand! But for fundamentals, talk to UNCLE_WHEAT - he knows needs vs wants."
+`,
+    'THE_ARCHITECT': `
+User: "I need fast results"
+THE_ARCHITECT: "Fast results come from good systems. But for immediate 48-hour wins, talk to TURBO."
+`
+  };
+  
+  return examples[personaKey] || 'Handle redirects based on specialty mismatch.';
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * GENERATION WITH VALIDATION + AUTO-RETRY (NOW WITH HISTORY)
+ * ───────────────────────────────────────────────────────────── */
+async function generateWithValidation(env, { model, systemPrompt, userMessage, conversationHistory = [], personaKey }) {
+  const MAX_ATTEMPTS = 3;
+
+  // Never mutate original user message; keep it stable to preserve language.
+  const originalUserMessage = userMessage;
+
+  let lastParsed = null;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    console.log('\n🔄 GENERATION ATTEMPT', attempt, 'of', MAX_ATTEMPTS);
+    
+    // Append QC to SYSTEM prompt ONLY (not user)
+    const qcAddon =
+      attempt === 1
+        ? ""
+        : `
+QC REGENERATION REQUIRED:
+- Fix violations listed below.
+- Do NOT add onboarding fluff.
+- Do NOT mention PDFs/knowledge base unless internal excerpts exist.
+- Provide exactly ONE 48-hour binary action with success criteria.
+- Output JSON ONLY.
+`.trim();
+
+    if (attempt > 1) {
+      console.log('⚠️ Retry mode - adding QC addon to system prompt');
+    }
+
+    const violationHint = lastParsed ? `\nVIOLATIONS TO FIX: ${detectViolations(lastParsed).join(", ")}\n` : "";
+    
+    if (violationHint) {
+      console.log('❌ Previous violations:', detectViolations(lastParsed));
+    }
+
+    // =====================================================
+    // ✅ FIX: Build messages array WITH conversation history
+    // =====================================================
+    console.log('🤖 Building messages array for AI...');
+    console.log('📜 Input conversation history length:', conversationHistory.length);
+    
+    const messages = [
+      { role: "system", content: systemPrompt + "\n\n" + qcAddon + "\n" + violationHint },
+    ];
+    
+    console.log('✅ Added system prompt');
+    
+    // Add conversation history (if any)
+    if (conversationHistory && conversationHistory.length > 0) {
+      console.log('📜 Adding', conversationHistory.length, 'history messages to array');
+      for (const msg of conversationHistory) {
+        messages.push({
+          role: msg.role,
+          content: msg.content
+        });
+      }
+      console.log('✅ History added to messages array');
+    } else {
+      console.log('⚠️ No conversation history to add');
+    }
+    
+    // Add the current user message (may already be in history, but ensures it's the last)
+    // Only add if not already the last message in history
+    const lastHistoryMsg = conversationHistory[conversationHistory.length - 1];
+    const currentMsgAlreadyInHistory = lastHistoryMsg?.role === 'user' && lastHistoryMsg?.content === originalUserMessage;
+    
+    if (!currentMsgAlreadyInHistory) {
+      console.log('➕ Adding current message to array:', originalUserMessage);
+      messages.push({ role: "user", content: originalUserMessage });
+    } else {
+      console.log('⏭️ Current message already in history, skipping');
+    }
+    
+    console.log('📊 Final messages array length:', messages.length);
+    console.log('📊 Final messages array:', JSON.stringify(messages, null, 2));
+    console.log('🚀 Calling AI model...');
+    
+    const response = await env.AI.run(model, { messages });
+    
+    console.log('📥 RAW AI Response:', JSON.stringify(response, null, 2));
+
+    let rawText = stripCodeFences(extractText(response)).trim();
+    console.log('📝 Extracted text (after stripping fences):', rawText.slice(0, 200) + '...');
+
+    const parsed = safeJsonParse(rawText);
+    if (!parsed) {
+      console.error('❌ Failed to parse JSON from AI response');
+      console.log('Raw text was:', rawText);
+      if (attempt < MAX_ATTEMPTS) {
+        console.log('🔄 Retrying...');
+        continue;
+      }
+      console.log('❌ All attempts exhausted, returning fallback');
+      return hardFallback(personaKey, "I couldn't format JSON. Re-ask in one sentence.");
+    }
+    
+    console.log('✅ Parsed JSON successfully:', JSON.stringify(parsed, null, 2));
+
+    const cleaned = cleanResponseStrict(parsed, personaKey);
+    console.log('🧹 Cleaned response:', JSON.stringify(cleaned, null, 2));
+    lastParsed = cleaned;
+
+    const violations = detectViolations(cleaned);
+    console.log('🔍 Checking for violations...');
+    
+    if (violations.length === 0) {
+      console.log('✅ No violations detected! Response is valid.');
+      console.log('🎉 Returning successful response');
+      return cleaned;
+    }
+    
+    console.log('⚠️ Found', violations.length, 'violations:', violations);
+    console.log('🔄 Will retry with violation hints...');
+
+    // loop and try again (QC stays in system prompt)
+  }
+
+  // After attempts, return safe fallback (never leak QC)
+  return hardFallback(
+    personaKey,
+    "Please resend your question in one sentence and include your city + budget + goal."
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * VALIDATION (updated to catch onboarding fluff + banned phrases)
+ * ───────────────────────────────────────────────────────────── */
+function detectViolations(resultJson) {
+  const text = JSON.stringify(resultJson).toLowerCase();
+
+  const badPhrases = [
+    // hallucination / drift
+    "according to the pdf",
+    "pdf knowledge base",
+    "knowledge base",
+    "review the advice above",
+    "web search reveals",
+    // generic filler (only flag these for business questions, not conversational)
+    // "can be lucrative",  // Removed - too strict
+    // "growing demand",    // Removed - too strict
+    // "do market research", // Removed - too strict
+    // onboarding fluff (your screenshot issue)
+    "to better assist you",
+    "i need more information",
+    "provide more information",
+  ];
+
+  const violations = [];
+  for (const p of badPhrases) {
+    if (text.includes(p)) violations.push(p);
+  }
+
+  // Only check next_action if the response looks like a business response
+  // Skip action validation for short conversational responses
+  const bubbleText = resultJson?.bubbles?.[0]?.text || "";
+  const isConversational = bubbleText.length < 200;  // Short responses are likely conversational
+  
+  if (!isConversational) {
+    const next = resultJson?.final?.next_action || "";
+    if (!isGoodAction(next)) violations.push("weak_next_action");
+  }
+
+  return violations;
+}
+
+function isGoodAction(nextAction) {
+  if (typeof nextAction !== "string") return false;
+  const t = nextAction.toLowerCase().trim();
+  
+  // Allow shorter actions for conversational responses (minimum 10 chars)
+  if (t.length < 10) return false;
+  
+  // Block only the most generic non-actions
+  if (t === "review the advice above" || t === "review the advice above.") return false;
+  
+  // For conversational questions, any reasonable action is fine
+  // Only enforce strict validation for longer, business-focused actions
+  if (t.length < 30) return true;  // Short actions are OK
+  
+  // For longer actions, prefer time-bound but don't require it
+  const hasTime = /(\b24\b|\b48\b|hour|hrs|day|week|today|tomorrow|اليوم|بكرا|خلال|ساعة)/i.test(t);
+  const hasMeasure = /(send|collect|write|call|visit|price|quote|calculate|list|compare|draft|build|ask|tell|share|check|confirm|اكتب|اجمع|اتصل|زر|قارن|احسب|ارسل)/i.test(t);
+
+  // Accept if it has either time OR action verb (not both required)
+  return hasTime || hasMeasure || t.length >= 20;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * QUERY REWRITE CALL (passes detected language as hint)
+ * ───────────────────────────────────────────────────────────── */
+async function runQueryRewrite(env, userText, detectedLang) {
+  console.log('🔄 Query Rewrite: Starting...');
+  console.log('📝 Input text:', userText);
+  console.log('🌍 Detected language:', detectedLang);
+  
+  try {
+    const hint = `User language hint: ${detectedLang}. Keep normalized_query in same language.`;
+
+    console.log('🤖 Calling rewrite model:', MODEL_REWRITE);
+    const resp = await env.AI.run(MODEL_REWRITE, {
+      messages: [
+        { role: "system", content: QUERY_REWRITE_PROMPT },
+        { role: "user", content: hint + "\n\nUser message:\n" + userText },
+      ],
+    });
+
+    console.log('📥 Rewrite model response:', JSON.stringify(resp, null, 2));
+
+    const raw = stripCodeFences(extractText(resp)).trim();
+    console.log('📝 Extracted raw text:', raw);
+    
+    const parsed = safeJsonParse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      console.error('❌ Failed to parse rewrite response as JSON');
+      return null;
+    }
+
+    console.log('✅ Parsed rewrite result:', JSON.stringify(parsed, null, 2));
+
+    parsed.use_internal_rag = !!parsed.use_internal_rag;
+    parsed.use_web_search = !!parsed.use_web_search;
+
+    // Ensure user_language exists
+    if (!parsed.user_language) {
+      console.log('⚠️ No user_language in parsed result, using detected:', detectedLang);
+      parsed.user_language = detectedLang;
+    }
+
+    // Extra: web search triggers
+    const t = userText.toLowerCase();
+    if (/(license|permit|registration|requirements|moci|qfc|qatar)/i.test(t)) {
+      console.log('🔍 Detected licensing/permit keywords, forcing web search');
+      parsed.use_web_search = true;
+    }
+    if (/[\u0600-\u06FF]/.test(userText) && /(ترخيص|تصريح|تسجيل|متطلبات|وزارة|قطر)/.test(userText)) {
+      console.log('🔍 Detected Arabic licensing keywords, forcing web search');
+      parsed.use_web_search = true;
+    }
+
+    console.log('✅ Final rewrite result:', JSON.stringify(parsed, null, 2));
+    return parsed;
+  } catch (err) {
+    console.error('❌ Query rewrite error:', err.message);
+    return null;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * VECTORIZE RAG (OPTIONAL) — truth-gated
+ * ───────────────────────────────────────────────────────────── */
+async function retrieveInternalExcerpts(env, query, topK = 8) {
+  console.log('🔎 Vectorize RAG: Starting retrieval...');
+  console.log('🔍 Query:', query);
+  console.log('📊 Top K:', topK);
+  
+  const idx = env.MONEYAI_VECTORIZE;
+  if (!idx || typeof idx.query !== "function") {
+    console.log('⚠️ Vectorize not configured or not available');
+    return [];
+  }
+
+  try {
+    console.log('🤖 Querying Vectorize index...');
+    const res = await idx.query(query, { topK, returnMetadata: true });
+    
+    console.log('📥 Vectorize response:', JSON.stringify(res, null, 2));
+
+    const matches = res?.matches || res?.results || [];
+    console.log('📊 Found', matches.length, 'matches');
+    
+    const excerpts = matches
+      .slice(0, topK)
+      .map((m, i) => ({
+        chunk_id: String(m.id ?? m.chunk_id ?? `chunk_${i + 1}`),
+        score: typeof m.score === "number" ? m.score : null,
+        text: m.metadata?.text || m.metadata?.content || m.text || m.document || "",
+        source: m.metadata?.source || m.metadata?.doc || m.metadata?.title || "internal",
+      }))
+      .filter((x) => (x.text || "").trim().length > 0);
+    
+    console.log('✅ Returning', excerpts.length, 'filtered excerpts');
+    excerpts.forEach((ex, i) => {
+      console.log(`  [${i}] Score: ${ex.score?.toFixed(3)}, Source: ${ex.source}, ID: ${ex.chunk_id}`);
+    });
+    
+    return excerpts;
+  } catch (e) {
+    console.error("❌ Vectorize query failed:", e?.message || e);
+    return [];
+  }
+}
+
+function formatInternalExcerpts(excerpts) {
+  if (!excerpts || excerpts.length === 0) return "";
+  const lines = excerpts.slice(0, 8).map((x) => {
+    const snippet = (x.text || "").trim().replace(/\s+/g, " ");
+    const clipped = snippet.length > 420 ? snippet.slice(0, 420) + "…" : snippet;
+    return `- [chunk_id: ${x.chunk_id}] [source: ${x.source}] ${clipped}`;
+  });
+  return `\n\nINTERNAL EXCERPTS (truth-gated):\n${lines.join("\n")}\n`;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * WEB SEARCH (Tavily)
+ * ───────────────────────────────────────────────────────────── */
+async function searchWeb(query, apiKey) {
+  console.log('🌐 Web Search: Starting Tavily search...');
+  console.log('🔍 Query:', query);
+  
+  const response = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: apiKey,
+      query: query,
+      search_depth: "basic",
+      max_results: 5,
+      include_answer: true,
+      include_raw_content: false,
+    }),
+  });
+
+  console.log('📡 Tavily response status:', response.status);
+
+  if (!response.ok) {
+    console.error('❌ Tavily API error:', response.status);
+    throw new Error(`Tavily API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('📥 Tavily response data:', JSON.stringify(data, null, 2));
+  
+  let context = "";
+
+  if (data.answer) {
+    console.log('💡 Tavily answer:', data.answer);
+    context += `Summary: ${data.answer}\n\n`;
+  }
+
+  if (Array.isArray(data.results) && data.results.length > 0) {
+    console.log('📊 Found', data.results.length, 'search results');
+    context += "Sources:\n";
+    data.results.slice(0, 3).forEach((r, i) => {
+      const title = r.title || "Source";
+      const content = (r.content || "").substring(0, 220);
+      console.log(`  [${i+1}] ${title}: ${content.slice(0, 100)}...`);
+      context += `${i + 1}. ${title}: ${content}...\n`;
+    });
+  } else {
+    console.log('⚠️ No search results found');
+  }
+
+  console.log('✅ Returning web context:', context.slice(0, 200), '...');
+  return context.trim();
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * HELPERS
+ * ───────────────────────────────────────────────────────────── */
+function extractText(response) {
+  if (typeof response === "string") return response;
+  if (response?.response) return typeof response.response === "string" ? response.response : JSON.stringify(response.response);
+  if (response?.result) return typeof response.result === "string" ? response.result : JSON.stringify(response.result);
+  return JSON.stringify(response);
+}
+
+function stripCodeFences(s) {
+  return String(s || "").replace(/```json\s*/g, "").replace(/```\s*/g, "");
+}
+
+function safeJsonParse(s) {
+  try {
+    return JSON.parse(s);
+  } catch (_) {
+    return null;
+  }
+}
+
+function cleanResponseStrict(parsed, character) {
+  const out = {
+    mode: parsed?.mode === "council_debate" ? "council_debate" : "reply",
+    selected_character: String(parsed?.selected_character || character),
+    bubbles: [],
+    final: { decision: "ACCEPT", next_action: "" },
+  };
+
+  const bubbles = Array.isArray(parsed?.bubbles) ? parsed.bubbles : [];
+  out.bubbles = bubbles.length
+    ? bubbles.map((b) => ({
+        speaker: String(b?.speaker || character),
+        text: typeof b?.text === "string" ? b.text : JSON.stringify(b?.text ?? ""),
+      }))
+    : [{ speaker: character, text: typeof parsed === "string" ? parsed : JSON.stringify(parsed) }];
+
+  const decision = String(parsed?.final?.decision || "ACCEPT").toUpperCase();
+  out.final.decision = decision === "REJECT" ? "REJECT" : "ACCEPT";
+
+  out.final.next_action = typeof parsed?.final?.next_action === "string" ? parsed.final.next_action : "";
+
+  return out;
+}
+
+function hardFallback(character, msg) {
+  return {
+    mode: "reply",
+    selected_character: character,
+    bubbles: [{ speaker: character, text: msg }],
+    final: {
+      decision: "REJECT",
+      next_action:
+        "Within 48h: re-ask in 1 sentence + include your budget and target segment. Success: you send those 2 details.",
+    },
+  };
+}
+
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      // Debug header so you can confirm you are hitting THIS worker
+      "X-MoneyAI-Worker": "v7-relaxed-validation",
+    },
+  });
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * PERSONAS (voice only)
+ * ───────────────────────────────────────────────────────────── */
+const PERSONAS = {
+  KAREEM: `[KAREEM] Laziness/Efficiency. "If it requires effort, it's broken." Finds shortcuts.`,
+  TURBO: `[TURBO] Speed/Execution. "Results by Friday." Action-oriented.`,
+  WOLF: `[WOLF] Greed/ROI. "10x or nothing." Cold, numerical.`,
+  LUNA: `[LUNA] Satisfaction/Brand. "People pay for FEELING." Premium-focused.`,
+  THE_CAPTAIN: `[THE_CAPTAIN] Security/Risk. "Assume everything fails." Protective.`,
+  TEMPO: `[TEMPO] Time Auditor. "Time is currency." Tracks time leaks + effort cost.`,
+  HAKIM: `[HAKIM] Wisdom. Uses parables and stories.`,
+  UNCLE_WHEAT: `[UNCLE_WHEAT] Necessity. "Needs survive." Sells essentials.`,
+  TOMMY_TOMATO: `[TOMMY_TOMATO] Hype. "Sell the dream." Branding expert.`,
+  THE_ARCHITECT: `[THE_ARCHITECT] System Builder. Structured, decisive, compounding systems.`,
+};
+
+function runRoutingLogic(text) {
+  const t = String(text || "").toLowerCase();
+
+  if (t.includes("council debate") || t.includes("debate") || t.includes("council")) {
+    return { character: "THE_ARCHITECT", killSwitchTriggered: true };
+  }
+
+  if (t.includes("risk") || t.includes("safe")) return { character: "THE_CAPTAIN", killSwitchTriggered: false };
+  if (t.includes("fast") || t.includes("quick") || t.includes("now")) return { character: "TURBO", killSwitchTriggered: false };
+  if (t.includes("lazy") || t.includes("automate") || t.includes("easy")) return { character: "KAREEM", killSwitchTriggered: false };
+  if (t.includes("brand") || t.includes("premium") || t.includes("luxury")) return { character: "LUNA", killSwitchTriggered: false };
+  if (t.includes("hype") || t.includes("viral")) return { character: "TOMMY_TOMATO", killSwitchTriggered: false };
+  if (t.includes("scale") || t.includes("10x") || t.includes("roi")) return { character: "WOLF", killSwitchTriggered: false };
+  if (t.includes("time") || t.includes("hour") || t.includes("audit")) return { character: "TEMPO", killSwitchTriggered: false };
+  if (t.includes("need") || t.includes("wheat") || t.includes("essential")) return { character: "UNCLE_WHEAT", killSwitchTriggered: false };
+  if (t.includes("story") || t.includes("wisdom")) return { character: "HAKIM", killSwitchTriggered: false };
+
+  // Arabic routing keywords
+  if (/[\u0600-\u06FF]/.test(text || "")) {
+    if (/(مخاطر|آمن|امان)/.test(text)) return { character: "THE_CAPTAIN", killSwitchTriggered: false };
+    if (/(سريع|الآن|بسرعة)/.test(text)) return { character: "TURBO", killSwitchTriggered: false };
+    if (/(وقت|ساعات|تدقيق)/.test(text)) return { character: "TEMPO", killSwitchTriggered: false };
+  }
+
+  return { character: "THE_ARCHITECT", killSwitchTriggered: false };
+}
