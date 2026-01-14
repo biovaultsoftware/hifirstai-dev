@@ -1054,17 +1054,33 @@
       
       for (const msg of recentMessages) {
         if (msg.dir === 'out') {
-          // User message - always include
+          // User message - always include, limit size
           formatted.push({
             role: 'user',
-            content: msg.text
+            content: msg.text.slice(0, 3000)
           });
           continue;
         }
         
         // Assistant message - ONLY include if it has rawJson
         if (msg.rawJson) {
-          const jsonStr = JSON.stringify(msg.rawJson);
+          let jsonStr = JSON.stringify(msg.rawJson);
+          
+          // ✅ Prevent worker dropping it due to size
+          if (jsonStr.length > 11000) {
+            // Keep only essentials
+            const slim = {
+              mode: msg.rawJson.mode,
+              selected_character: msg.rawJson.selected_character,
+              bubbles: msg.rawJson.bubbles?.map(b => ({
+                speaker: b.speaker,
+                text: String(b.text).slice(0, 600)
+              }))?.slice(0, 4),
+              final: msg.rawJson.final
+            };
+            jsonStr = JSON.stringify(slim);
+          }
+          
           formatted.push({
             role: 'assistant',
             content: jsonStr
@@ -1076,8 +1092,19 @@
         console.log('⏭️ Skipping assistant message without rawJson');
       }
       
-      console.log('✅ Formatted', formatted.length, 'history messages');
-      return formatted;
+      // ✅ De-duplicate consecutive same-role messages
+      const deduped = [];
+      for (const m of formatted) {
+        const last = deduped[deduped.length - 1];
+        if (last && last.role === m.role && last.content === m.content) {
+          console.log('🔄 Skipping duplicate message');
+          continue;
+        }
+        deduped.push(m);
+      }
+      
+      console.log('✅ Formatted', deduped.length, 'history messages (after de-dup)');
+      return deduped.slice(-20);
     }
 
     async function callAPI(chatId, userText, history = []) {
@@ -1120,11 +1147,13 @@
         console.log('📥 RESPONSE DATA:', JSON.stringify(data, null, 2));
         console.log('═══════════════════════════════════════');
         
-        // ✅ Return full data for debate mode handling
+        // ✅ FIX: Return complete response with selected_character
         return {
           mode: data.mode,
           bubbles: data.bubbles || [],
-          data: data  // Keep full data for debugging
+          selected_character: data.selected_character || data.selectedCharacter || chatId,
+          final: data.final || null,
+          data: data  // Keep full data for rawJson storage
         };
         
       } catch (err) {
@@ -1225,11 +1254,23 @@
           
           console.log(`  [${index}] ${speakerName}:`, bubbleText.slice(0, 50) + '...');
           
-          // ✅ FIX: Store raw JSON for history
+          const isLastBubble = index === response.bubbles.length - 1;
+          
+          // ✅ FIX: Create minimal per-bubble JSON, only store on LAST bubble
+          const perBubbleJson = isLastBubble ? {
+            mode: "reply",
+            selected_character: speakerName,
+            bubbles: [{ speaker: speakerName, text: bubbleText }],
+            final: response.final || response.data?.final || {
+              decision: "ACCEPT",
+              next_action: "Continue conversation. Success: 1 clear message."
+            }
+          } : null;
+          
           addMessage(chatId, 'in', bubbleText, {
-            tag: speakerName,  // Show speaker name
-            rawJson: response.data,  // ✅ Store full JSON response
-            chips: index === response.bubbles.length - 1 ? [  // Only last bubble gets chips
+            tag: speakerName,
+            rawJson: perBubbleJson,  // ✅ ONLY last bubble gets JSON
+            chips: isLastBubble ? [
               { action: 'next', label: '→ Next' }, 
               { action: 'audit', label: '⏱️ Audit' }
             ] : []
@@ -1242,20 +1283,52 @@
         thread.lastPreview = truncate(lastText, 30);
         
       } else {
-        console.log('💬 NORMAL MODE: Single bubble');
+        console.log('💬 NORMAL MODE: Rendering all bubbles');
         
-        // Normal mode - single message
-        const replyText = response.bubbles?.[0]?.text || response.reply || getMockReply(chatId);
-        const finalText = typeof replyText === 'object' ? JSON.stringify(replyText) : String(replyText);
+        // ✅ FIX: Render ALL bubbles, not just first one
+        const bubbles = response.bubbles || [];
         
-        // ✅ FIX: Store raw JSON for history
-        addMessage(chatId, 'in', finalText, {
-          tag: member?.name,
-          rawJson: response.data,  // ✅ Store full JSON response
-          chips: [{ action: 'next', label: '→ Next' }, { action: 'audit', label: '⏱️ Audit' }]
-        });
+        if (bubbles.length === 0) {
+          // Fallback: no bubbles at all
+          const fallbackText = response.reply || getMockReply(chatId);
+          addMessage(chatId, 'in', fallbackText, {
+            tag: member?.name,
+            rawJson: response.data,
+            chips: [{ action: 'next', label: '→ Next' }, { action: 'audit', label: '⏱️ Audit' }]
+          });
+        } else if (bubbles.length === 1) {
+          // Single bubble: render as before
+          const replyText = bubbles[0]?.text || getMockReply(chatId);
+          const finalText = typeof replyText === 'object' ? JSON.stringify(replyText) : String(replyText);
+          
+          addMessage(chatId, 'in', finalText, {
+            tag: member?.name,
+            rawJson: response.data,
+            chips: [{ action: 'next', label: '→ Next' }, { action: 'audit', label: '⏱️ Audit' }]
+          });
+        } else {
+          // ✅ NEW: Multiple bubbles in normal mode (e.g., KAREEM 4-line structure)
+          console.log(`  📦 Rendering ${bubbles.length} bubbles from ${response.selected_character}`);
+          
+          bubbles.forEach((bubble, idx) => {
+            const speaker = bubble.speaker || response.selected_character;
+            const bubbleText = typeof bubble.text === 'object' ? JSON.stringify(bubble.text) : String(bubble.text || '');
+            
+            addMessage(chatId, 'in', bubbleText, {
+              tag: speaker,
+              rawJson: idx === bubbles.length - 1 ? response.data : null, // Only last bubble gets full JSON
+              chips: idx === bubbles.length - 1 ? [
+                { action: 'next', label: '→ Next' }, 
+                { action: 'audit', label: '⏱️ Audit' }
+              ] : []
+            });
+          });
+        }
         
-        thread.lastPreview = truncate(finalText, 30);
+        // Update thread preview with last bubble
+        const lastBubble = bubbles[bubbles.length - 1] || {};
+        const lastText = typeof lastBubble.text === 'object' ? JSON.stringify(lastBubble.text) : String(lastBubble.text || '');
+        thread.lastPreview = truncate(lastText, 30);
       }
 
       state.isSending = false;
