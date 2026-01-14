@@ -3,355 +3,751 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#0d1117">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <title>Money AI — The Council</title>
-  
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <style>
-    /* =========================================
-       PREMIUM COSMETICS LAYER
-       (Applied to your original layout structure)
-       ========================================= */
+    *, *::before, *::after { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
     :root {
-      /* Deep Space Black Theme */
-      --bg-primary: #050505;
-      --bg-secondary: #0a0a0a;
-      --bg-tertiary: #141414;
-      
-      /* Glass Effects */
-      --bg-glass: rgba(10, 10, 10, 0.85);
-      --bg-glass-heavy: rgba(5, 5, 5, 0.95);
-      
-      /* Text */
-      --text-primary: #ededed;
-      --text-secondary: #a1a1aa;
-      --text-tertiary: #52525b;
-      
-      /* Borders & Glows */
-      --border-subtle: rgba(255, 255, 255, 0.08);
-      --border-medium: rgba(255, 255, 255, 0.15);
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #21262d;
+      --bg-glass: rgba(22, 27, 34, 0.95);
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-tertiary: #6e7681;
+      --border-subtle: rgba(139, 148, 158, 0.15);
+      --border-medium: rgba(139, 148, 158, 0.25);
       --glow-primary: #f97316;
       --glow-secondary: #fb923c;
       --glow-accent: rgba(249, 115, 22, 0.15);
       --gold-core: #f59e0b;
-      
-      /* Layout Safes */
+      --gold-bright: #fbbf24;
+      --rush-color: #f87171;
+      --rich-color: #4ade80;
+      --border-glow: rgba(249, 115, 22, 0.4);
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
-      
-      /* Fonts */
-      --font-display: 'Space Grotesk', sans-serif;
-      --font-body: 'Inter', sans-serif;
+      --safe-left: env(safe-area-inset-left, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --font-primary: 'Space Grotesk', system-ui, sans-serif;
     }
-
+    
     [data-mode="light"] {
       --bg-primary: #ffffff;
-      --bg-secondary: #f8fafc;
-      --bg-tertiary: #f1f5f9;
-      --bg-glass: rgba(255, 255, 255, 0.9);
-      --text-primary: #0f172a;
-      --text-secondary: #475569;
-      --border-subtle: rgba(0,0,0,0.08);
+      --bg-secondary: #f6f8fa;
+      --bg-tertiary: #eaeef2;
+      --bg-glass: rgba(246, 248, 250, 0.95);
+      --text-primary: #1f2328;
+      --text-secondary: #57606a;
+      --text-tertiary: #6e7681;
+      --border-subtle: rgba(31, 35, 40, 0.1);
+      --border-medium: rgba(31, 35, 40, 0.2);
     }
-
-    /* Reset */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    
+    [data-theme="coal"] { --glow-primary: #6b7280; --glow-secondary: #9ca3af; }
+    [data-theme="ember"] { --glow-primary: #f97316; --glow-secondary: #fb923c; }
+    [data-theme="bronze"] { --glow-primary: #d97706; --glow-secondary: #f59e0b; }
+    [data-theme="gold"] { --glow-primary: #fbbf24; --glow-secondary: #fcd34d; }
     
     html, body {
-      width: 100%; height: 100%; overflow: hidden;
-      font-family: var(--font-body); font-size: 15px; line-height: 1.5;
-      color: var(--text-primary); background: var(--bg-primary);
-      position: fixed; inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font-primary);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text-primary);
+      background: var(--bg-primary);
+      -webkit-font-smoothing: antialiased;
+      /* Prevent horizontal scroll on iOS */
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
     }
     
-    button, input, textarea { font-family: inherit; font-size: inherit; border: none; outline: none; background: none; color: inherit; }
+    button, input, textarea { 
+      font-family: inherit; 
+      font-size: inherit; 
+      border: none; 
+      outline: none; 
+      background: none; 
+      color: inherit;
+    }
     
-    /* Scrollbars */
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 4px; }
 
-    /* =========================================
-       LAYOUT (Your Original Logic Preserved)
-       ========================================= */
+    /* Lock Screen */
+    .lock-screen {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      padding-top: calc(20px + var(--safe-top));
+      padding-bottom: calc(20px + var(--safe-bottom));
+      background: radial-gradient(ellipse at 30% 20%, rgba(249, 115, 22, 0.08) 0%, transparent 50%), var(--bg-primary);
+    }
+    .lock-screen.hidden { display: none; }
+    
+    .lock-card {
+      width: 100%;
+      max-width: 360px;
+      padding: 28px 20px;
+      background: var(--bg-glass);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      text-align: center;
+      backdrop-filter: blur(20px);
+    }
+    
+    .lock-logo {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 20px;
+      border-radius: 50%;
+      background: conic-gradient(from 0deg, var(--glow-primary), var(--gold-bright), var(--glow-secondary), var(--glow-primary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      position: relative;
+    }
+    .lock-logo::before {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      background: var(--bg-secondary);
+      border-radius: 50%;
+    }
+    .lock-logo span { position: relative; z-index: 1; }
+    
+    .lock-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, var(--text-primary), var(--glow-secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .lock-subtitle { font-size: 12px; color: var(--text-secondary); margin-bottom: 20px; }
+    
+    .lock-btn {
+      width: 100%;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.2), rgba(251, 191, 36, 0.1));
+      border: 1px solid var(--border-glow);
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .lock-btn.secondary { border-color: var(--border-subtle); background: var(--bg-tertiary); font-size: 12px; }
+    
+    .lock-badges { display: flex; justify-content: center; gap: 6px; margin-top: 16px; flex-wrap: wrap; }
+    .lock-badge { padding: 3px 8px; font-size: 9px; font-weight: 500; text-transform: uppercase; color: var(--text-tertiary); background: var(--bg-tertiary); border: 1px solid var(--border-subtle); border-radius: 9999px; }
+
+    /* App - Full Screen Fixed */
     .app {
-      position: fixed; inset: 0; display: flex;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      overflow: hidden;
       background: var(--bg-primary);
     }
+    .app.locked { filter: blur(20px); pointer-events: none; }
 
     /* Sidebar */
     .sidebar {
-      width: 320px; height: 100%; display: flex; flex-direction: column;
-      background: var(--bg-secondary); border-right: 1px solid var(--border-subtle);
-      flex-shrink: 0; z-index: 50;
-    }
-
-    .sidebar-header {
-      padding: 16px; padding-top: max(16px, var(--safe-top));
-      display: flex; align-items: center; justify-content: space-between;
-      border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .stories-strip {
-      padding: 16px; display: flex; gap: 12px; overflow-x: auto;
-      border-bottom: 1px solid var(--border-subtle); scrollbar-width: none;
-    }
-
-    .search-box {
-      margin: 12px 16px; padding: 10px 14px;
-      background: var(--bg-tertiary); border-radius: 12px;
-      display: flex; align-items: center; gap: 10px;
-      border: 1px solid transparent; transition: border-color 0.2s;
-    }
-    .search-box:focus-within { border-color: var(--glow-primary); }
-    .search-box input { flex: 1; font-size: 14px; }
-
-    .chat-list { flex: 1; overflow-y: auto; padding: 8px; }
-
-    /* Main Area */
-    .main {
-      flex: 1; display: flex; flex-direction: column;
-      background: radial-gradient(circle at 50% -20%, var(--glow-accent), transparent 70%);
-      position: relative;
-    }
-
-    /* Header */
-    .chat-header-bar {
-      padding: 12px 20px; padding-top: max(12px, var(--safe-top));
-      background: var(--bg-glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border-subtle);
-      display: flex; align-items: center; gap: 12px; z-index: 10;
-    }
-
-    /* Thread */
-    .thread {
-      flex: 1; overflow-y: auto; padding: 20px;
-      display: flex; flex-direction: column; gap: 20px;
-      scroll-behavior: smooth;
-    }
-
-    /* Composer */
-    .composer {
-      padding: 16px; padding-bottom: max(16px, var(--safe-bottom));
-      background: var(--bg-glass-heavy);
-      border-top: 1px solid var(--border-subtle);
-      backdrop-filter: blur(30px);
+      width: 320px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border-subtle);
       flex-shrink: 0;
     }
-
-    /* =========================================
-       STYLING (The Premium Look)
-       ========================================= */
     
-    /* Branding */
-    .brand-logo { 
-      width: 32px; height: 32px; border-radius: 8px; 
+    .sidebar-header {
+      padding: 12px;
+      padding-top: calc(12px + var(--safe-top));
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-logo {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
       background: linear-gradient(135deg, var(--glow-primary), var(--gold-core));
-      display: flex; align-items: center; justify-content: center; 
-      font-family: var(--font-display); font-weight: 700; color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--bg-primary);
     }
-    .brand-title { font-family: var(--font-display); font-weight: 700; font-size: 16px; margin-left: 10px; }
+    .brand-title { font-size: 14px; font-weight: 700; }
+    .brand-subtitle { font-size: 9px; color: var(--text-tertiary); text-transform: uppercase; }
     
-    /* Buttons */
-    .theme-toggle, .header-btn, .btn-back {
-      width: 36px; height: 36px; border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer;
+    .sidebar-actions { display: flex; gap: 6px; }
+    .theme-toggle, .council-badge {
+      width: 30px;
+      height: 30px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 11px;
     }
-    .btn-back { display: none; } /* Hidden on desktop by default */
-
+    .theme-toggle svg { width: 14px; height: 14px; }
+    .council-badge { color: var(--glow-primary); border-color: var(--glow-primary); background: var(--glow-accent); font-weight: 600; }
+    
     /* Stories */
-    .story-item { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+    .stories-strip {
+      padding: 10px;
+      border-bottom: 1px solid var(--border-subtle);
+      overflow-x: auto;
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .stories-strip::-webkit-scrollbar { display: none; }
+    
+    .story-item { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
     .story-ring {
-      width: 52px; height: 52px; padding: 2px; border-radius: 50%;
-      background: linear-gradient(135deg, var(--glow-primary), var(--gold-core));
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      padding: 2px;
+      background: conic-gradient(from 0deg, var(--glow-primary), var(--gold-bright), var(--glow-secondary), var(--glow-primary));
     }
     .story-ring.read { background: var(--border-medium); }
     .story-avatar {
-      width: 100%; height: 100%; border-radius: 50%; background: var(--bg-tertiary);
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: var(--bg-tertiary);
       border: 2px solid var(--bg-secondary);
-      display: flex; align-items: center; justify-content: center; font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
     }
-    .story-name { font-size: 10px; font-weight: 500; color: var(--text-secondary); }
-
-    /* Chat Items */
+    .story-name { font-size: 9px; color: var(--text-secondary); max-width: 50px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    
+    /* Search */
+    .search-box {
+      margin: 10px;
+      padding: 8px 12px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .search-box svg { width: 14px; height: 14px; color: var(--text-tertiary); }
+    .search-box input { flex: 1; background: transparent; color: var(--text-primary); font-size: 13px; }
+    .search-box input::placeholder { color: var(--text-tertiary); }
+    
+    /* Chat List */
+    .chat-list { flex: 1; overflow-y: auto; padding: 6px; }
+    
     .chat-item {
-      display: flex; align-items: center; gap: 12px; padding: 12px;
-      border-radius: 14px; margin-bottom: 4px; cursor: pointer; transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-bottom: 2px;
     }
-    .chat-item:hover, .chat-item.active { background: var(--bg-tertiary); }
+    .chat-item:hover { background: var(--bg-tertiary); }
+    .chat-item.active { background: var(--glow-accent); border: 1px solid var(--border-glow); }
+    
     .chat-avatar {
-      width: 44px; height: 44px; border-radius: 14px;
-      background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center;
-      font-size: 20px; flex-shrink: 0;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
     }
-    .chat-name { font-family: var(--font-display); font-weight: 700; font-size: 14px; }
-    .chat-preview { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chat-meta { flex: 1; min-width: 0; }
+    .chat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+    .chat-name { font-weight: 600; font-size: 13px; }
+    .chat-role { font-size: 9px; color: var(--text-tertiary); text-transform: uppercase; }
+    .chat-time { font-size: 10px; color: var(--text-tertiary); }
+    .chat-preview { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    /* Messages */
-    .message-row { display: flex; gap: 10px; max-width: 85%; animation: slideUp 0.3s ease; }
-    @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    /* MAIN AREA - Critical for mobile */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(ellipse at 50% 0%, var(--glow-accent) 0%, transparent 60%), var(--bg-primary);
+      box-sizing: border-box;
+    }
+    
+    /* Chat Header */
+    .chat-header-bar {
+      padding: 8px;
+      padding-top: max(8px, var(--safe-top));
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-glass);
+      backdrop-filter: blur(20px);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    .btn-back {
+      display: none;
+      width: 34px;
+      height: 34px;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border-radius: 8px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .btn-back svg { width: 18px; height: 18px; }
+    
+    .header-avatar { 
+      width: 34px; 
+      height: 34px; 
+      border-radius: 50%; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 15px; 
+      flex-shrink: 0;
+    }
+    .header-info { flex: 1; min-width: 0; overflow: hidden; }
+    .header-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .header-status { font-size: 10px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    
+    .chat-header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; }
+    .session-limit { 
+      padding: 3px 8px; 
+      background: var(--bg-tertiary); 
+      border: 1px solid var(--border-subtle); 
+      border-radius: 9999px; 
+      font-size: 10px; 
+      color: var(--text-secondary); 
+      font-family: monospace;
+    }
+    .session-limit.warning { border-color: var(--rush-color); color: var(--rush-color); }
+    
+    .header-btn {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .header-btn svg { width: 16px; height: 16px; }
+
+    /* Thread - Scrollable messages */
+    .thread {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 12px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      -webkit-overflow-scrolling: touch;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    .message-row {
+      display: flex;
+      gap: 8px;
+      max-width: 85%;
+      animation: msgIn 0.2s ease-out;
+      box-sizing: border-box;
+    }
+    @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     .message-row.in { align-self: flex-start; }
     .message-row.out { align-self: flex-end; flex-direction: row-reverse; }
-
-    .msg-avatar { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; background: var(--bg-tertiary); }
+    
+    .msg-avatar { width: 24px; height: 24px; min-width: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; align-self: flex-end; }
+    .message-row.out .msg-avatar { display: none; }
     
     .bubble {
-      padding: 12px 16px; border-radius: 18px; font-size: 15px; line-height: 1.5;
-      position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      padding: 10px 12px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.45;
+      word-wrap: break-word;
+      word-break: break-word;
+      overflow-wrap: break-word;
+      max-width: 100%;
     }
-    .message-row.in .bubble {
-      background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
-      border-top-left-radius: 4px; color: var(--text-primary);
-    }
-    .message-row.out .bubble {
-      background: linear-gradient(135deg, var(--glow-primary), var(--gold-core));
-      color: #000; border-top-right-radius: 4px; font-weight: 500;
-      box-shadow: 0 4px 12px var(--glow-accent);
-    }
+    .message-row.in .bubble { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-bottom-left-radius: 4px; }
+    .message-row.out .bubble { background: linear-gradient(135deg, var(--glow-primary), var(--gold-core)); color: var(--bg-primary); border-bottom-right-radius: 4px; }
     
-    .bubble-tag { display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.1); margin-bottom: 4px; }
+    .bubble-tag { display: inline-flex; padding: 2px 6px; margin-bottom: 6px; font-size: 9px; font-weight: 600; text-transform: uppercase; border-radius: 9999px; }
+    .bubble-content { white-space: pre-wrap; }
+    .bubble-meta { display: flex; justify-content: flex-end; margin-top: 6px; font-size: 9px; opacity: 0.7; }
     
     .bubble-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .chip-btn {
-      padding: 6px 12px; background: var(--bg-primary); border: 1px solid var(--border-medium);
-      border-radius: 8px; font-size: 11px; font-weight: 500; cursor: pointer; color: var(--text-primary);
-    }
+    .chip-btn { padding: 6px 10px; background: var(--bg-tertiary); border: 1px solid var(--border-subtle); border-radius: 9999px; color: var(--text-primary); font-size: 10px; cursor: pointer; }
+    
+    /* Typing */
+    .typing-indicator { display: flex; align-items: center; gap: 6px; padding: 10px 12px; background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 14px; width: fit-content; }
+    .typing-dots { display: flex; gap: 3px; }
+    .typing-dots span { width: 5px; height: 5px; background: var(--glow-primary); border-radius: 50%; animation: bounce 1.4s ease-in-out infinite; }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%, 80%, 100% { transform: scale(0.8); opacity: 0.4; } 40% { transform: scale(1.2); opacity: 1; } }
 
-    /* Composer Elements */
-    .quick-actions { display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; scrollbar-width: none; }
-    .quick-btn {
-      padding: 6px 14px; background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
-      border-radius: 20px; font-size: 11px; font-weight: 600; color: var(--text-secondary);
-      white-space: nowrap; cursor: pointer;
+    /* COMPOSER - FIXED FOR IPHONE */
+    .composer {
+      padding: 8px;
+      padding-bottom: max(8px, var(--safe-bottom));
+      border-top: 1px solid var(--border-subtle);
+      background: var(--bg-secondary);
+      flex-shrink: 0;
+      width: 100%;
+      box-sizing: border-box;
     }
-
-    .input-row { display: flex; align-items: flex-end; gap: 10px; }
+    
+    .quick-actions {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 0 4px;
+    }
+    .quick-actions::-webkit-scrollbar { display: none; }
+    .quick-btn { 
+      padding: 6px 10px; 
+      background: var(--bg-tertiary); 
+      border: 1px solid var(--border-subtle); 
+      border-radius: 9999px; 
+      color: var(--text-secondary); 
+      font-size: 10px; 
+      white-space: nowrap; 
+      cursor: pointer; 
+      flex-shrink: 0; 
+    }
+    
+    /* INPUT ROW - CRITICAL FIX FOR IPHONE */
+    .input-row { 
+      display: flex; 
+      align-items: flex-end;
+      gap: 8px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
     .input-wrap {
-      flex: 1; background: var(--bg-tertiary); border: 1px solid var(--border-subtle);
-      border-radius: 20px; padding: 10px 14px; display: flex; align-items: center;
-      transition: all 0.2s;
+      flex: 1 1 auto;
+      min-width: 0;
+      max-width: calc(100% - 50px); /* Leave room for send button */
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      box-sizing: border-box;
     }
-    .input-wrap:focus-within { background: var(--bg-secondary); border-color: var(--glow-primary); box-shadow: 0 0 0 2px var(--glow-accent); }
-    .input-wrap textarea { width: 100%; background: transparent; resize: none; font-size: 15px; max-height: 100px; min-height: 24px; }
-
+    .input-wrap:focus-within { border-color: var(--glow-primary); }
+    
+    .input-wrap textarea {
+      flex: 1;
+      min-width: 0;
+      width: 100%;
+      background: transparent;
+      color: var(--text-primary);
+      resize: none;
+      min-height: 22px;
+      max-height: 80px;
+      line-height: 1.4;
+      font-size: 16px; /* Prevents iOS zoom */
+      -webkit-appearance: none;
+    }
+    .input-wrap textarea::placeholder { color: var(--text-tertiary); }
+    
+    /* SEND BUTTON - ALWAYS VISIBLE */
     .send-btn {
-      width: 46px; height: 46px; border-radius: 14px;
+      width: 42px;
+      height: 42px;
+      min-width: 42px;
+      max-width: 42px;
       background: linear-gradient(135deg, var(--glow-primary), var(--gold-core));
-      color: #000; display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; cursor: pointer; box-shadow: 0 4px 12px var(--glow-accent);
+      color: var(--bg-primary);
+      border-radius: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      flex-grow: 0;
+      box-sizing: border-box;
     }
-    .send-btn:disabled { opacity: 0.5; filter: grayscale(1); cursor: default; box-shadow: none; }
+    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .send-btn svg { width: 18px; height: 18px; }
 
     /* Empty State */
-    .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
-    .empty-icon { font-size: 50px; margin-bottom: 20px; filter: drop-shadow(0 0 20px var(--glow-accent)); }
-    .empty-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; margin-bottom: 8px; }
-    .empty-text { color: var(--text-secondary); max-width: 280px; margin-bottom: 24px; font-size: 13px; }
-    .empty-btn { padding: 12px 24px; background: var(--bg-tertiary); border: 1px solid var(--border-medium); border-radius: 16px; font-weight: 600; cursor: pointer; }
-
-    /* Lock Screen */
-    .lock-screen { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 30%, var(--glow-accent), #000 80%); backdrop-filter: blur(10px); }
-    .lock-card { width: 100%; max-width: 360px; padding: 40px; background: var(--bg-glass); border: 1px solid var(--border-subtle); border-radius: 30px; text-align: center; backdrop-filter: blur(30px); }
-    .lock-logo { width: 70px; height: 70px; margin: 0 auto 20px; border-radius: 50%; background: conic-gradient(from 0deg, var(--glow-primary), var(--gold-core), transparent, var(--glow-primary)); display: flex; align-items: center; justify-content: center; font-size: 30px; }
-    .lock-btn { width: 100%; padding: 14px; margin-bottom: 10px; border-radius: 14px; font-weight: 600; cursor: pointer; }
-    .lock-btn:first-of-type { background: linear-gradient(135deg, var(--glow-primary), var(--gold-core)); border: none; color: #000; }
-    .lock-btn.secondary { background: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary); }
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+    }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .empty-text { color: var(--text-secondary); max-width: 260px; margin-bottom: 20px; font-size: 12px; }
+    .empty-btn { padding: 12px 24px; background: linear-gradient(135deg, var(--glow-primary), var(--gold-core)); border-radius: 12px; color: var(--bg-primary); font-weight: 600; font-size: 13px; cursor: pointer; }
 
     /* Reel Viewer */
-    .reel-viewer { position: fixed; inset: 0; z-index: 2000; background: #000; display: none; align-items: center; justify-content: center; }
+    .reel-viewer {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 500;
+      background: rgba(0, 0, 0, 0.95);
+      backdrop-filter: blur(20px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      padding-top: calc(16px + var(--safe-top));
+      padding-bottom: calc(16px + var(--safe-bottom));
+    }
     .reel-viewer.open { display: flex; }
-    .reel-card { width: 100%; height: 100%; max-width: 450px; background: #0a0a0a; position: relative; display: flex; flex-direction: column; }
-    .reel-content { flex: 1; padding: 40px; display: flex; flex-direction: column; justify-content: center; background: radial-gradient(circle, var(--bg-tertiary), #000); text-align: center; }
-    .reel-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; margin-bottom: 20px; }
-    .reel-cta { display: inline-block; padding: 10px 20px; border: 1px solid var(--glow-primary); color: var(--glow-primary); border-radius: 20px; font-weight: 600; margin-top: 20px; }
-    .reel-reply { padding: 16px; background: var(--bg-tertiary); display: flex; gap: 10px; position: absolute; bottom: 0; width: 100%; padding-bottom: max(16px, var(--safe-bottom)); }
-    .reel-reply input { flex: 1; padding: 12px; background: var(--bg-primary); border-radius: 10px; color: #fff; }
-    .reel-reply button { padding: 0 20px; background: #fff; color: #000; border-radius: 10px; font-weight: 600; cursor: pointer; }
+    
+    .reel-card {
+      width: 100%;
+      max-width: 380px;
+      max-height: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .reel-progress { display: flex; gap: 3px; padding: 10px; flex-shrink: 0; }
+    .reel-segment { flex: 1; height: 2px; background: var(--bg-tertiary); border-radius: 2px; overflow: hidden; }
+    .reel-segment-fill { height: 100%; width: 0%; background: var(--text-primary); }
+    .reel-segment.completed .reel-segment-fill { width: 100%; }
+    .reel-segment.active .reel-segment-fill { background: var(--glow-primary); }
+    
+    .reel-header { padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); flex-shrink: 0; }
+    .reel-author { display: flex; align-items: center; gap: 8px; }
+    .reel-author-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+    .reel-author-name { font-weight: 600; font-size: 13px; }
+    .reel-author-role { font-size: 9px; color: var(--text-tertiary); }
+    .reel-close { width: 28px; height: 28px; background: var(--bg-tertiary); color: var(--text-secondary); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+    
+    .reel-content {
+      flex: 1;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      background: radial-gradient(ellipse at 50% 50%, var(--glow-accent) 0%, transparent 70%), var(--bg-tertiary);
+      overflow-y: auto;
+      position: relative;
+      min-height: 180px;
+    }
+    .reel-touch-zones { position: absolute; inset: 0; display: flex; z-index: 1; }
+    .reel-touch-prev { flex: 1; }
+    .reel-touch-next { flex: 2; }
+    .reel-text { position: relative; z-index: 2; pointer-events: none; }
+    .reel-title { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+    .reel-lines { font-size: 13px; line-height: 1.6; color: var(--text-secondary); }
+    .reel-lines p { margin-bottom: 4px; }
+    .reel-cta { margin-top: 16px; padding: 10px; background: var(--glow-accent); border: 1px solid var(--glow-primary); border-radius: 10px; text-align: center; pointer-events: auto; }
+    .reel-cta-text { font-size: 12px; font-weight: 600; color: var(--glow-primary); }
+    
+    .reel-reply { padding: 10px 14px; border-top: 1px solid var(--border-subtle); display: flex; gap: 8px; flex-shrink: 0; }
+    .reel-reply input { flex: 1; min-width: 0; padding: 8px 12px; background: var(--bg-tertiary); border: 1px solid var(--border-subtle); border-radius: 8px; color: var(--text-primary); font-size: 13px; }
+    .reel-reply input::placeholder { color: var(--text-tertiary); }
+    .reel-reply button { padding: 8px 14px; background: var(--glow-primary); border-radius: 8px; color: var(--bg-primary); font-weight: 600; font-size: 12px; cursor: pointer; flex-shrink: 0; }
 
-    /* Responsive Mobile Logic (Identical to Original) */
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: calc(20px + var(--safe-bottom));
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      padding: 10px 20px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-glow);
+      border-radius: 9999px;
+      font-size: 12px;
+      z-index: 600;
+      opacity: 0;
+      transition: all 0.25s ease;
+    }
+    .toast.visible { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    /* ========================================
+       RESPONSIVE - MOBILE FIRST
+    ======================================== */
+    
+    /* Mobile: Full screen sidebar toggle */
     @media (max-width: 768px) {
-      .sidebar { position: fixed; inset: 0; width: 100%; transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+      .sidebar {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        width: 100%;
+        z-index: 100;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+      }
       .sidebar.open { transform: translateX(0); }
+      .btn-back { display: flex; }
+      
+      .main {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        width: 100%;
+      }
       
       [data-route="home"] .sidebar { transform: translateX(0); }
       [data-route="home"] .main { display: none; }
       [data-route="chat"] .sidebar { transform: translateX(-100%); }
       [data-route="chat"] .main { display: flex; }
-      
-      .btn-back { display: flex; }
     }
-
+    
+    /* Very small screens */
+    @media (max-width: 375px) {
+      .quick-actions { display: none; }
+      .session-limit { display: none; }
+      .input-wrap { padding: 6px 10px; }
+      .send-btn { width: 38px; height: 38px; min-width: 38px; }
+    }
+    
     .hidden { display: none !important; }
-    .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: var(--bg-glass-heavy); border: 1px solid var(--border-medium); padding: 10px 20px; border-radius: 30px; font-size: 13px; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 3000; }
-    .toast.visible { opacity: 1; }
   </style>
 </head>
 <body data-route="home" data-theme="ember" data-mode="dark">
 
+  <!-- Lock Screen -->
   <div class="lock-screen" id="lockScreen">
     <div class="lock-card">
       <div class="lock-logo"><span>🔥</span></div>
-      <h1 class="lock-title" style="margin-bottom: 8px;">Money AI</h1>
-      <p style="color:var(--text-secondary); margin-bottom: 24px; font-size: 14px;">The Council of 10 awaits.<br>Rush → Rich coaching.</p>
-      <button class="lock-btn" id="btnUnlock">Unlock with Biometrics</button>
+      <h1 class="lock-title">Money AI</h1>
+      <p class="lock-subtitle">The Council of 10 awaits.<br>Rush → Rich coaching.</p>
+      <button class="lock-btn" id="btnUnlock">🔓 Unlock with Biometrics</button>
       <button class="lock-btn secondary" id="btnUnlockDemo">Enter without biometrics</button>
+      <div class="lock-badges">
+        <span class="lock-badge">10 Mentors</span>
+        <span class="lock-badge">Local-First</span>
+        <span class="lock-badge">AI Powered</span>
+      </div>
     </div>
   </div>
 
+  <!-- App -->
   <div class="app" id="app">
+    <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <header class="sidebar-header">
-        <div style="display:flex; align-items:center; gap:10px;">
+        <div class="brand">
           <div class="brand-logo">M</div>
           <div>
             <div class="brand-title">Money AI</div>
-            <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:1px; font-weight:600;">The Council</div>
+            <div class="brand-subtitle">The Council</div>
           </div>
         </div>
-        <button class="theme-toggle" id="themeToggle">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-        </button>
+        <div class="sidebar-actions">
+          <button class="theme-toggle" id="themeToggle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          </button>
+          <div class="council-badge">10</div>
+        </div>
       </header>
       
       <div class="stories-strip" id="storiesStrip"></div>
       
       <div class="search-box">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input type="text" id="searchInput" placeholder="Search council...">
       </div>
       
       <div class="chat-list" id="chatList"></div>
     </aside>
     
+    <!-- Main -->
     <main class="main" id="mainArea">
       <div class="empty-state" id="emptyState">
         <div class="empty-icon">🏛️</div>
         <h2 class="empty-title">The Council awaits</h2>
-        <p class="empty-text">10 mentors with different perspectives on money, time, and leverage. Choose your path.</p>
+        <p class="empty-text">10 mentors with different perspectives on money, time, and leverage.</p>
         <button class="empty-btn" id="btnStartChat">Watch Today's Reels</button>
       </div>
       
       <header class="chat-header-bar hidden" id="chatHeader">
         <button class="btn-back" id="btnBack">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
         </button>
+        <div class="header-avatar" id="headerAvatar">🧠</div>
         <div class="header-info">
           <div class="header-name" id="headerName">Kareem</div>
-          <div class="header-status" id="headerStatus" style="font-size:11px; display:flex; align-items:center; gap:6px;">
-            <span style="width:6px; height:6px; background:var(--glow-primary); border-radius:50%;"></span> Work less, earn more.
-          </div>
+          <div class="header-status" id="headerStatus">Work less, earn more.</div>
         </div>
-        <div style="display:flex; align-items:center; gap:8px;">
+        <div class="chat-header-right">
           <div class="session-limit" id="sessionLimit"><span id="msgCount">0</span>/12</div>
-          <button class="header-btn" id="btnCouncil" style="background:transparent; border:none;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <button class="header-btn" id="btnCouncil">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </button>
         </div>
       </header>
@@ -370,34 +766,36 @@
             <textarea id="msgInput" rows="1" placeholder="Ask your mentor..."></textarea>
           </div>
           <button class="send-btn" id="btnSend" disabled>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="m22 2-7 20-4-9-9-4z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="m22 2-7 20-4-9-9-4z"/></svg>
           </button>
         </div>
       </div>
     </main>
   </div>
   
+  <!-- Reel Viewer -->
   <div class="reel-viewer" id="reelViewer">
     <div class="reel-card">
-      <div class="reel-progress" id="reelProgress" style="position:absolute; top:20px; left:10px; right:10px; display:flex; gap:4px; z-index:20;"></div>
-      
-      <div style="position:absolute; top:40px; left:16px; right:16px; display:flex; justify-content:space-between; z-index:20;">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div class="reel-author-avatar" id="reelAvatar" style="width:36px; height:36px; border-radius:50%; background:rgba(255,255,255,0.1); display:flex; justify-content:center; align-items:center; font-size:18px; backdrop-filter:blur(10px);">🦊</div>
-          <div class="reel-author-name" id="reelAuthor" style="font-weight:700; text-shadow:0 1px 3px rgba(0,0,0,0.5);">Kareem</div>
+      <div class="reel-progress" id="reelProgress"></div>
+      <header class="reel-header">
+        <div class="reel-author">
+          <div class="reel-author-avatar" id="reelAvatar">🦊</div>
+          <div>
+            <div class="reel-author-name" id="reelAuthor">Kareem</div>
+            <div class="reel-author-role" id="reelRole">Laziness</div>
+          </div>
         </div>
-        <button class="reel-close" id="btnCloseReel" style="width:36px; height:36px; border-radius:50%; background:rgba(0,0,0,0.3); color:#fff; display:flex; justify-content:center; align-items:center; backdrop-filter:blur(10px);">✕</button>
-      </div>
-
+        <button class="reel-close" id="btnCloseReel">✕</button>
+      </header>
       <div class="reel-content">
-        <div style="position:absolute; inset:0; display:flex; z-index:1;">
-          <div class="reel-touch-prev" id="reelTouchPrev" style="flex:1;"></div>
-          <div class="reel-touch-next" id="reelTouchNext" style="flex:2;"></div>
+        <div class="reel-touch-zones">
+          <div class="reel-touch-prev" id="reelTouchPrev"></div>
+          <div class="reel-touch-next" id="reelTouchNext"></div>
         </div>
-        <div style="position:relative; z-index:2; pointer-events:none;">
-          <h2 class="reel-title" id="reelTitle">Title</h2>
-          <div class="reel-lines" id="reelLines" style="font-size:18px; line-height:1.6; color:rgba(255,255,255,0.8); margin-bottom:20px;"></div>
-          <div class="reel-cta"><span class="reel-cta-text" id="reelCta">Action</span></div>
+        <div class="reel-text">
+          <h2 class="reel-title" id="reelTitle">Work once. Repeat forever.</h2>
+          <div class="reel-lines" id="reelLines"><p>Your problem isn't effort.</p><p>It's low leverage.</p></div>
+          <div class="reel-cta"><span class="reel-cta-text" id="reelCta">DM me "SCALE"</span></div>
         </div>
       </div>
       <div class="reel-reply">
@@ -407,6 +805,7 @@
     </div>
   </div>
   
+  <!-- Toast -->
   <div class="toast" id="toast"><span id="toastText">Message sent</span></div>
 
   <script>
@@ -420,7 +819,7 @@
       REEL_DURATION: 6000,
       USE_REAL_API: true,
       WORKER_URL: 'https://human1stai.rr-rshemodel.workers.dev',
-      API_TIMEOUT: 30000 
+      API_TIMEOUT: 30000  // ✅ 30s for debate mode (larger prompts)
     };
 
     const COUNCIL = [
@@ -507,7 +906,7 @@
       DOM.reelProgress = $('#reelProgress');
       DOM.reelAvatar = $('#reelAvatar');
       DOM.reelAuthor = $('#reelAuthor');
-      DOM.reelRole = $('#reelRole'); 
+      DOM.reelRole = $('#reelRole');
       DOM.reelTitle = $('#reelTitle');
       DOM.reelLines = $('#reelLines');
       DOM.reelCta = $('#reelCta');
@@ -588,13 +987,13 @@
         const isActive = state.activeChatId === m.id;
         return `<div class="chat-item ${isActive ? 'active' : ''}" data-chat="${m.id}">
           <div class="chat-avatar" style="background:linear-gradient(135deg,${m.accent},${m.accent}66)">${m.emoji}</div>
-          <div class="chat-meta" style="flex:1">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="chat-meta">
+            <div class="chat-header">
               <span class="chat-name">${m.name}</span>
-              <span style="font-size:10px; opacity:0.6">${formatTime(thread?.lastTs)}</span>
+              <span class="chat-time">${formatTime(thread?.lastTs)}</span>
             </div>
             <div class="chat-role">${m.role}</div>
-            <div class="chat-preview">${truncate(thread?.lastPreview || m.status, 35)}</div>
+            <div class="chat-preview">${truncate(thread?.lastPreview || m.status, 30)}</div>
           </div>
         </div>`;
       }).join('');
@@ -615,9 +1014,9 @@
         return `<div class="message-row ${isIn ? 'in' : 'out'}">
           ${isIn ? `<div class="msg-avatar" style="background:linear-gradient(135deg,${color},${color}66)">${m?.emoji || '🤖'}</div>` : ''}
           <div class="bubble">
-            ${msg.tag ? `<div class="bubble-tag" style="color:${color}">${msg.tag}</div>` : ''}
+            ${msg.tag ? `<div class="bubble-tag" style="background:${color}22;color:${color}">${msg.tag}</div>` : ''}
             <div class="bubble-content">${escapeHtml(msg.text)}</div>
-            <div style="font-size:10px; opacity:0.5; margin-top:4px; text-align:right">${formatTime(msg.ts)}</div>
+            <div class="bubble-meta">${formatTime(msg.ts)}</div>
             ${msg.chips ? `<div class="bubble-actions">${msg.chips.map(c => `<button class="chip-btn" data-chip="${c.action}">${c.label}</button>`).join('')}</div>` : ''}
           </div>
         </div>`;
@@ -639,20 +1038,23 @@
       if (DOM.sessionLimit) DOM.sessionLimit.classList.toggle('warning', (thread.userMessageCount || 0) >= CONFIG.SESSION_LIMIT - 2);
     }
 
+    // ✅ Helper to check if string is JSON object
     function looksLikeJsonObject(s) {
       const t = String(s || '').trim();
       return t.startsWith('{') && t.endsWith('}');
     }
 
+    // ✅ FIXED: ONLY include assistant messages that have rawJson
     function formatHistoryForAPI(messages) {
       console.log('🔄 formatHistoryForAPI called with', messages?.length || 0, 'messages');
       if (!messages || !messages.length) return [];
       
-      const recentMessages = messages.slice(-20); 
+      const recentMessages = messages.slice(-20); // Last 20 messages
       const formatted = [];
       
       for (const msg of recentMessages) {
         if (msg.dir === 'out') {
+          // User message - always include, limit size
           formatted.push({
             role: 'user',
             content: msg.text.slice(0, 3000)
@@ -660,9 +1062,13 @@
           continue;
         }
         
+        // Assistant message - ONLY include if it has rawJson
         if (msg.rawJson) {
           let jsonStr = JSON.stringify(msg.rawJson);
+          
+          // ✅ Prevent worker dropping it due to size
           if (jsonStr.length > 11000) {
+            // Keep only essentials
             const slim = {
               mode: msg.rawJson.mode,
               selected_character: msg.rawJson.selected_character,
@@ -674,25 +1080,44 @@
             };
             jsonStr = JSON.stringify(slim);
           }
+          
           formatted.push({
             role: 'assistant',
             content: jsonStr
           });
           continue;
         }
+        
+        // ❌ SKIP plain text assistant messages (prevents style poisoning)
+        console.log('⏭️ Skipping assistant message without rawJson');
       }
       
+      // ✅ De-duplicate consecutive same-role messages
       const deduped = [];
       for (const m of formatted) {
         const last = deduped[deduped.length - 1];
-        if (last && last.role === m.role && last.content === m.content) continue;
+        if (last && last.role === m.role && last.content === m.content) {
+          console.log('🔄 Skipping duplicate message');
+          continue;
+        }
         deduped.push(m);
       }
+      
+      console.log('✅ Formatted', deduped.length, 'history messages (after de-dup)');
       return deduped.slice(-20);
     }
 
     async function callAPI(chatId, userText, history = []) {
-      if (!CONFIG.USE_REAL_API) return { reply: getMockReply(chatId) };
+      console.log('═══════════════════════════════════════');
+      console.log('🚀 callAPI START');
+      console.log('📍 chatId:', chatId);
+      console.log('💬 userText:', userText);
+      console.log('📜 history length:', history?.length || 0);
+      
+      if (!CONFIG.USE_REAL_API) {
+        console.log('⚠️ Using mock API');
+        return { reply: getMockReply(chatId) };
+      }
       
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), CONFIG.API_TIMEOUT);
@@ -700,9 +1125,12 @@
         const formattedHistory = formatHistoryForAPI(history);
         const requestBody = { 
           text: userText,
-          history: formattedHistory,
+          history: formattedHistory,  // ✅ NOW SENDING HISTORY!
           chatId: chatId
         };
+        
+        console.log('📤 REQUEST BODY:', JSON.stringify(requestBody, null, 2));
+        console.log('🌐 Sending to:', CONFIG.WORKER_URL);
         
         const res = await fetch(CONFIG.WORKER_URL, {
           method: 'POST',
@@ -712,19 +1140,26 @@
         });
         
         clearTimeout(timeout);
+        console.log('📡 Response status:', res.status, res.statusText);
+        
         if (!res.ok) throw new Error(`API ${res.status}`);
         const data = await res.json();
+        console.log('📥 RESPONSE DATA:', JSON.stringify(data, null, 2));
+        console.log('═══════════════════════════════════════');
         
+        // ✅ FIX: Return complete response with selected_character
         return {
           mode: data.mode,
           bubbles: data.bubbles || [],
           selected_character: data.selected_character || data.selectedCharacter || chatId,
           final: data.final || null,
-          data: data
+          data: data  // Keep full data for rawJson storage
         };
         
       } catch (err) {
         clearTimeout(timeout);
+        console.error('❌ API ERROR:', err);
+        console.log('⚠️ Using mock reply as fallback');
         return { 
           mode: 'reply',
           bubbles: [{ speaker: chatId, text: getMockReply(chatId) }]
@@ -749,13 +1184,32 @@
     }
 
     async function sendMessage() {
-      if (state.isSending) return;
+      console.log('🚨 sendMessage() CALLED');
+      console.log('📌 state.isSending:', state.isSending);
+      
+      if (state.isSending) {
+        console.log('⚠️ EARLY EXIT: Already sending');
+        return;
+      }
+      
       const chatId = state.activeChatId;
-      if (!chatId) return;
+      console.log('📌 activeChatId:', chatId);
+      
+      if (!chatId) {
+        console.log('⚠️ EARLY EXIT: No active chat');
+        return;
+      }
       
       const text = DOM.msgInput.value.trim();
-      if (!text) return;
+      console.log('📌 Message text:', text);
       
+      if (!text) {
+        console.log('⚠️ EARLY EXIT: Empty message');
+        return;
+      }
+      
+      console.log('✅ All checks passed, proceeding...');
+
       const thread = state.threads.get(chatId);
       if ((thread?.userMessageCount || 0) >= CONFIG.SESSION_LIMIT) {
         showToast('⚠️ Session limit reached');
@@ -778,21 +1232,32 @@
 
       showTyping();
 
+      // ✅ NEW: Get conversation history and pass to API
+      console.log('💾 Getting history for chatId:', chatId);
       const history = state.messages.get(chatId) || [];
-      const response = await callAPI(chatId, text, history);
+      console.log('💾 History length:', history.length);
+      
+      const response = await callAPI(chatId, text, history);  // ✅ NOW PASSING HISTORY!
       await new Promise(r => setTimeout(r, CONFIG.TYPING_DELAY));
       hideTyping();
 
+      // ✅ NEW: Handle debate mode vs normal mode
       const member = COUNCIL.find(c => c.id === chatId);
       
       if (response.mode === 'council_debate' && response.bubbles?.length > 1) {
+        console.log('🎭 DEBATE MODE: Adding', response.bubbles.length, 'bubbles');
+        
+        // Add each speaker's bubble as a separate message
         response.bubbles.forEach((bubble, index) => {
           const speakerName = bubble.speaker || 'AI';
           const bubbleText = typeof bubble.text === 'object' ? JSON.stringify(bubble.text) : String(bubble.text || '');
           
+          console.log(`  [${index}] ${speakerName}:`, bubbleText.slice(0, 50) + '...');
+          
+          // ✅ CRITICAL FIX: Only store rawJson on LAST bubble to prevent history bloat
           addMessage(chatId, 'in', bubbleText, {
             tag: speakerName,
-            rawJson: index === response.bubbles.length - 1 ? response.data : null,
+            rawJson: index === response.bubbles.length - 1 ? response.data : null,  // ✅ ONLY LAST BUBBLE
             chips: index === response.bubbles.length - 1 ? [
               { action: 'next', label: '→ Next' }, 
               { action: 'audit', label: '⏱️ Audit' }
@@ -800,14 +1265,19 @@
           });
         });
         
+        // Update thread preview with last bubble
         const lastBubble = response.bubbles[response.bubbles.length - 1];
         const lastText = typeof lastBubble.text === 'object' ? JSON.stringify(lastBubble.text) : String(lastBubble.text || '');
         thread.lastPreview = truncate(lastText, 30);
         
       } else {
+        console.log('💬 NORMAL MODE: Rendering all bubbles');
+        
+        // ✅ FIX: Render ALL bubbles, not just first one
         const bubbles = response.bubbles || [];
         
         if (bubbles.length === 0) {
+          // Fallback: no bubbles at all
           const fallbackText = response.reply || getMockReply(chatId);
           addMessage(chatId, 'in', fallbackText, {
             tag: member?.name,
@@ -815,6 +1285,7 @@
             chips: [{ action: 'next', label: '→ Next' }, { action: 'audit', label: '⏱️ Audit' }]
           });
         } else if (bubbles.length === 1) {
+          // Single bubble: render as before
           const replyText = bubbles[0]?.text || getMockReply(chatId);
           const finalText = typeof replyText === 'object' ? JSON.stringify(replyText) : String(replyText);
           
@@ -824,13 +1295,16 @@
             chips: [{ action: 'next', label: '→ Next' }, { action: 'audit', label: '⏱️ Audit' }]
           });
         } else {
+          // ✅ NEW: Multiple bubbles in normal mode (e.g., KAREEM 4-line structure)
+          console.log(`  📦 Rendering ${bubbles.length} bubbles from ${response.selected_character}`);
+          
           bubbles.forEach((bubble, idx) => {
             const speaker = bubble.speaker || response.selected_character;
             const bubbleText = typeof bubble.text === 'object' ? JSON.stringify(bubble.text) : String(bubble.text || '');
             
             addMessage(chatId, 'in', bubbleText, {
               tag: speaker,
-              rawJson: idx === bubbles.length - 1 ? response.data : null,
+              rawJson: idx === bubbles.length - 1 ? response.data : null, // Only last bubble gets full JSON
               chips: idx === bubbles.length - 1 ? [
                 { action: 'next', label: '→ Next' }, 
                 { action: 'audit', label: '⏱️ Audit' }
@@ -839,6 +1313,7 @@
           });
         }
         
+        // Update thread preview with last bubble
         const lastBubble = bubbles[bubbles.length - 1] || {};
         const lastText = typeof lastBubble.text === 'object' ? JSON.stringify(lastBubble.text) : String(lastBubble.text || '');
         thread.lastPreview = truncate(lastText, 30);
@@ -853,7 +1328,14 @@
     }
 
     function addMessage(chatId, dir, text, opts = {}) {
-      const msg = { id: `${chatId}:${Date.now()}`, chatId, dir, text, ts: Date.now(), ...opts };
+      const msg = { 
+        id: `${chatId}:${Date.now()}`, 
+        chatId, 
+        dir, 
+        text, 
+        ts: Date.now(), 
+        ...opts 
+      };
       state.messages.get(chatId).push(msg);
       return msg;
     }
@@ -893,7 +1375,19 @@
       await new Promise(r => setTimeout(r, 1000));
       hideTyping();
       
-      const response = `🏛️ THE COUNCIL SPEAKS:\n\nKareem: "Automate it."\nTurbo: "Ship TODAY."\nWolf: "What's the 10x?"\nLuna: "Enjoy it."\nCaptain: "Safety first."\n\n→ Which voice?`;
+      const response = `🏛️ THE COUNCIL SPEAKS:
+
+Kareem: "Automate it."
+Turbo: "Ship TODAY."
+Wolf: "What's the 10x?"
+Luna: "Enjoy it."
+Captain: "Safety first."
+Tempo: "Track death cost."
+Wheat: "Is it a NEED?"
+Tommy: "Add hype!"
+Architect: "Build system."
+
+→ Which voice?`;
 
       addMessage(chatId, 'in', response, { tag: '🏛️ Council' });
       renderThread();
@@ -931,7 +1425,7 @@
       DOM.reelAvatar.textContent = m.emoji;
       DOM.reelAvatar.style.background = `linear-gradient(135deg,${m.accent},${m.accent}88)`;
       DOM.reelAuthor.textContent = m.name;
-      // DOM.reelRole.textContent = m.role; // Hidden in CSS
+      DOM.reelRole.textContent = m.role;
       DOM.reelTitle.textContent = reel.title;
       DOM.reelLines.innerHTML = reel.lines.map(l => `<p>${l}</p>`).join('');
       DOM.reelCta.textContent = `DM me "${reel.hook}"`;
@@ -1013,7 +1507,10 @@
     }
 
     function openChat(chatId) {
+      console.log('💬 Opening chat:', chatId);
       state.activeChatId = chatId;
+      console.log('✅ activeChatId set to:', state.activeChatId);
+      
       const m = COUNCIL.find(c => c.id === chatId);
       const thread = state.threads.get(chatId);
 
@@ -1026,13 +1523,17 @@
 
       const msgs = state.messages.get(chatId) || [];
       if (msgs.length === 0 && OPENER[chatId]) {
+        // ✅ FIX: Store OPENER as JSON so history is consistent
         addMessage(chatId, 'in', OPENER[chatId], { 
           tag: m?.name,
           rawJson: {
             mode: "reply",
             selected_character: "SYSTEM",
             bubbles: [{ speaker: "SYSTEM", text: OPENER[chatId] }],
-            final: { decision: "ACCEPT", next_action: "Ask your next question. Success: 1 clear sentence." }
+            final: { 
+              decision: "ACCEPT", 
+              next_action: "Ask your next question. Success: 1 clear sentence." 
+            }
           }
         });
         thread.lastTs = Date.now();
@@ -1065,7 +1566,7 @@
     function autoGrow(el) {
       if (!el) return;
       el.style.height = 'auto';
-      el.style.height = Math.min(120, el.scrollHeight) + 'px';
+      el.style.height = Math.min(80, el.scrollHeight) + 'px';
     }
 
     function showToast(msg) {
@@ -1090,11 +1591,16 @@
       };
       DOM.msgInput.onkeydown = e => {
         if (e.key === 'Enter' && !e.shiftKey) { 
+          console.log('⌨️ Enter pressed, calling sendMessage()');
           e.preventDefault(); 
           sendMessage(); 
         }
       };
-      DOM.btnSend.onclick = () => sendMessage();
+      DOM.btnSend.onclick = () => {
+        console.log('🖱️ Send button clicked, calling sendMessage()');
+        sendMessage();
+      };
+      console.log('✅ Message event handlers attached');
       DOM.quickActions.onclick = e => {
         const btn = e.target.closest('.quick-btn');
         if (btn) handleChip(btn.dataset.action);
@@ -1118,12 +1624,26 @@
     }
 
     function init() {
+      console.log('═══════════════════════════════════════');
+      console.log('🏛️ MONEY AI v3.1 WITH HISTORY SUPPORT');
+      console.log('📅', new Date().toISOString());
+      console.log('═══════════════════════════════════════');
+      
       cacheDom();
+      console.log('✅ DOM cached');
+      
       loadData();
+      console.log('✅ Data loaded');
+      
       bindEvents();
+      console.log('✅ Events bound');
+      
       renderStoriesStrip();
       renderChatList();
       setRoute('home');
+      
+      console.log('✅ MONEY AI READY WITH FULL LOGGING');
+      console.log('═══════════════════════════════════════');
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
